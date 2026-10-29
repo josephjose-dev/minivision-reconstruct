@@ -1,0 +1,66 @@
+<#
+Run every CI check, in the CI order, and stop at the first failure (docs/CI_GUARDRAILS.md).
+
+  scripts/check_all.ps1 [-Base REF] [-Head REF]
+
+-Base defaults to fresh-start (the integration branch). Test settings come from an optional, gitignored
+.env.test (see .env.test.example): PGPASSWORD, TEST_DATABASE_URL, INCIDENT_PG_BIN_DIR. Anything already set
+in your shell wins over the file.
+#>
+param(
+    [string]$Base = $(if ($env:BASE) { $env:BASE } else { 'fresh-start' }),
+    [string]$Head = 'HEAD'
+)
+
+$ErrorActionPreference = 'Stop'
+Set-Location (Join-Path $PSScriptRoot '..')
+
+# Prefer this worktree's settings; otherwise use the main checkout (first worktree).
+$settingsFile = '.env.test'
+if (-not (Test-Path -LiteralPath $settingsFile -PathType Leaf)) {
+    $worktrees = @(git -c core.quotePath=false worktree list --porcelain)
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot locate main checkout test settings.' }
+    $mainCheckout = $worktrees[0].Substring(9)
+    $settingsFile = Join-Path $mainCheckout '.env.test'
+}
+# Read only the three known keys from .env.test (the file is data, never executed).
+if (Test-Path -LiteralPath $settingsFile -PathType Leaf) {
+    foreach ($line in Get-Content -LiteralPath $settingsFile) {
+        if ($line -match '^(PGPASSWORD|TEST_DATABASE_URL|INCIDENT_PG_BIN_DIR)=(.*)$') {
+            $key = $Matches[1]
+            $value = $Matches[2].Trim().Trim('"')
+            if (-not [Environment]::GetEnvironmentVariable($key)) {
+                [Environment]::SetEnvironmentVariable($key, $value)
+            }
+        }
+    }
+}
+# Sensible default: the local PostgreSQL on its standard port, no password in the URL (libpq reads PGPASSWORD).
+if (-not $env:TEST_DATABASE_URL) { $env:TEST_DATABASE_URL = 'postgresql://postgres@localhost:5432/postgres' }
+
+$script:passed = 0
+function Invoke-Check {
+    param([string]$Name, [scriptblock]$Command)
+    Write-Host ''
+    Write-Host "=== $Name ==="
+    & $Command
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ''
+        Write-Host "FAILED: $Name"
+        Write-Host "check_all: $($script:passed) passed, then FAILED at: $Name"
+        exit 1
+    }
+    $script:passed++
+}
+
+Invoke-Check 'ruff format' { uv run ruff format --check src tests scripts }
+Invoke-Check 'ruff check' { uv run ruff check src tests scripts }
+Invoke-Check 'mypy' { uv run mypy }
+Invoke-Check 'pytest' { uv run pytest -q -rfE }
+foreach ($name in 'guard_conflict_markers', 'guard_utf8', 'guard_protected_paths', 'guard_test_integrity', 'guard_secrets', 'check_dependencies', 'guard_evidence_defaults', 'guard_migration_immutability') {
+    $command = { uv run python "scripts/$name.py" --base $Base --head $Head }.GetNewClosure()
+    Invoke-Check $name $command
+}
+
+Write-Host ''
+Write-Host "check_all: all $($script:passed)/12 checks passed (base: $Base)"
