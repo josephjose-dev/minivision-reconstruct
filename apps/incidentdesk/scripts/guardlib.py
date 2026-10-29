@@ -193,7 +193,7 @@ def changed_files(repo: Path, rng: Range, *, find_renames: bool = False) -> list
 
 def file_at(repo: Path, ref: str, path: str) -> str | None:
     """Text of `path` as of `ref`, or None if it does not exist there (or is not a regular blob)."""
-    result = git(repo, "show", f"{ref}:{path}", check=False)
+    result = git(repo, "show", f"{ref}:{path}", "--", check=False)
     return result.stdout if result.returncode == 0 else None
 
 
@@ -235,7 +235,7 @@ def changed_blobs(
     blobs = []
     for name in filter(None, names):
         result = subprocess.run(  # noqa: S603
-            ["git", "show", f"{ref}:{name}"],  # noqa: S607
+            ["git", "show", f"{ref}:{name}", "--"],  # noqa: S607
             cwd=repo,
             capture_output=True,
             check=False,
