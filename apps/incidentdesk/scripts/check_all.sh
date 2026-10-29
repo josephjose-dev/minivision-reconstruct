@@ -73,6 +73,7 @@ run "ruff format" uv run ruff format --check src tests scripts
 run "ruff check" uv run ruff check src tests scripts
 run "mypy" uv run mypy
 run "pytest" uv run pytest -q -rfE
+run "collaborator paths unchanged" guard collaborator_paths --base "$BASE" --head "$HEAD_REF"
 run "guard_conflict_markers" guard guard_conflict_markers --base "$BASE" --head "$HEAD_REF"
 run "guard_utf8" guard guard_utf8 --base "$BASE" --head "$HEAD_REF"
 run "guard_protected_paths" guard guard_protected_paths --base "$BASE" --head "$HEAD_REF"
@@ -84,7 +85,7 @@ run "guard_migration_immutability" guard guard_migration_immutability --base "$B
 
 echo
 if [ "$failed" -ne 0 ]; then
-  echo "check_all: $passed/12 passed, $failed failed (base: $BASE)"
+  echo "check_all: $passed/13 passed, $failed failed (base: $BASE)"
   exit 1
 fi
-echo "check_all: all $passed/12 checks passed (base: $BASE)"
+echo "check_all: all $passed/13 checks passed (base: $BASE)"

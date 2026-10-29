@@ -65,6 +65,7 @@ Invoke-Check 'ruff format' { uv run ruff format --check src tests scripts }
 Invoke-Check 'ruff check' { uv run ruff check src tests scripts }
 Invoke-Check 'mypy' { uv run mypy }
 Invoke-Check 'pytest' { uv run pytest -q -rfE }
+Invoke-Check 'collaborator paths unchanged' { uv run python scripts/collaborator_paths.py --base $Base --head $Head }
 foreach ($name in 'guard_conflict_markers', 'guard_utf8', 'guard_protected_paths', 'guard_test_integrity', 'guard_secrets', 'check_dependencies', 'guard_evidence_defaults', 'guard_migration_immutability') {
     $command = {
         if ($name -eq 'check_dependencies') {
@@ -78,7 +79,7 @@ foreach ($name in 'guard_conflict_markers', 'guard_utf8', 'guard_protected_paths
 
 Write-Host ''
 if ($script:failed -ne 0) {
-    Write-Host "check_all: $($script:passed)/12 passed, $($script:failed) failed (base: $Base)"
+    Write-Host "check_all: $($script:passed)/13 passed, $($script:failed) failed (base: $Base)"
     exit 1
 }
-Write-Host "check_all: all $($script:passed)/12 checks passed (base: $Base)"
+Write-Host "check_all: all $($script:passed)/13 checks passed (base: $Base)"

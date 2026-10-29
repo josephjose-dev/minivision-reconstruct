@@ -47,4 +47,6 @@ The offline dependency gate compares committed app lock blobs at the selected ba
 
 ## Reviewed gate baseline
 
-Create ticket branches from `integration/incidentdesk`. The default gate base is the owner-created annotated tag `incidentdesk-import-approved`. Only the owner creates or moves that tag after review. Missing, lightweight, non-ancestor tags and empty ranges are refused. Until approval, use `bash scripts/check_all.sh --Base integration/incidentdesk` or PowerShell `./scripts/check_all.ps1 -Base integration/incidentdesk`; `BASE` also overrides the default. Checks report all twelve results, including expected protected guard edits requiring review.
+Create ticket branches from `integration/incidentdesk`. The default gate base is the owner-created annotated tag `incidentdesk-import-approved`. Only the owner creates or moves that tag after review. Missing, lightweight, non-ancestor tags and empty ranges are refused. Until approval, use `bash scripts/check_all.sh --Base integration/incidentdesk` or PowerShell `./scripts/check_all.ps1 -Base integration/incidentdesk`; `BASE` also overrides the default. Checks report all thirteen results, including expected protected guard edits requiring review.
+
+The separate `collaborator paths unchanged` step compares the selected base through head for the worker source, root scripts/configs/tests/evaluation/data, and root project metadata. It reports changed paths and fails. Root scripts remain watched by the protected-path guard, preserving the imported guard test contract.
