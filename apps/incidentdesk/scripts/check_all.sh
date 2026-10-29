@@ -45,8 +45,8 @@ if [ -f "$settings_file" ]; then
     esac
   done < "$settings_file"
 fi
-# Sensible default: the local PostgreSQL on its standard port, no password in the URL (libpq reads PGPASSWORD).
-export TEST_DATABASE_URL="${TEST_DATABASE_URL:-postgresql://postgres@127.0.0.1:5433/incidentdesk_test_admin}"
+# Local test admin connection on port 5433; used only to create throwaway test databases.
+export TEST_DATABASE_URL="${TEST_DATABASE_URL:-postgresql://postgres@localhost:5433/postgres}"
 if [ -n "${INCIDENT_PG_BIN_DIR:-}" ]; then export INCIDENT_PG_BIN_DIR; fi
 
 passed=0

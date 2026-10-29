@@ -39,8 +39,8 @@ if (Test-Path -LiteralPath $settingsFile -PathType Leaf) {
         }
     }
 }
-# Sensible default: the local PostgreSQL on its standard port, no password in the URL (libpq reads PGPASSWORD).
-if (-not $env:TEST_DATABASE_URL) { $env:TEST_DATABASE_URL = 'postgresql://postgres@127.0.0.1:5433/incidentdesk_test_admin' }
+# Local test admin connection on port 5433; used only to create throwaway test databases.
+if (-not $env:TEST_DATABASE_URL) { $env:TEST_DATABASE_URL = 'postgresql://postgres@localhost:5433/postgres' }
 
 $script:passed = 0
 $script:failed = 0
