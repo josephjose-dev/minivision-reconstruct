@@ -2034,3 +2034,11 @@ Classification correction: `tests/test_guard_secrets.py` IMPORTED unchanged; dat
 Classification correction: `tests/test_guard_test_integrity.py` IMPORTED unchanged; dataset paths describe synthetic git sandbox files, not donor dataset reads.
 
 Classification correction: `tests/test_guard_text.py` IMPORTED unchanged; dataset paths describe synthetic git sandbox files, not donor dataset reads.
+
+## Claude-authored additions (not donor imports)
+- `CLAUDE.md`: new, Claude-authored. Local instructions and settings never staged.
+- `AGENTS.md`: new, Claude-authored. Local instructions and settings never staged.
+- `.gitignore (7 appended lines)`: new, Claude-authored. Local instructions and settings never staged.
+- `apps/incidentdesk/CLAUDE.md`: new, Claude-authored. Local instructions and settings never staged.
+- `CLAUDE.local.md (gitignored)`: new, Claude-authored. Local instructions and settings never staged.
+- `apps/incidentdesk/.env.test (gitignored)`: new, Claude-authored. Local instructions and settings never staged.
