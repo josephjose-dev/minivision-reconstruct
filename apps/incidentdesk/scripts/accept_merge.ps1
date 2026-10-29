@@ -7,8 +7,8 @@ Run it from the integration branch (for example fresh-start). It:
   1. refuses if the working tree is dirty, or if you are on main/master;
   2. runs `git merge --no-ff <branch>`; on a conflict it stops and leaves the merge for you (never auto-resolves);
   3. runs scripts/check_all.ps1 against the integration branch as it was before the merge;
-  4. only if every check passed, pushes the integration branch and then the ticket branch.
-It never force-pushes and never pushes main.
+  4. leaves the checked merge local for owner review; never pushes.
+It never pushes; publication belongs to the owner.
 #>
 param([Parameter(Mandatory = $true, Position = 0)][string]$Ticket)
 
@@ -50,7 +50,5 @@ if ($LASTEXITCODE -ne 0) {
     Stop-With 'A check failed. Nothing was pushed. The merge commit is local only.'
 }
 
-Write-Host "All checks passed. Pushing $integration and $Ticket."
-Invoke-Git push origin $integration
-Invoke-Git push origin $Ticket
+Write-Host "All checks passed. Merge remains local; owner publishes."
 Write-Host 'accept_merge: done.'
