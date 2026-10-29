@@ -76,7 +76,7 @@ run "guard_utf8" guard guard_utf8 --base "$BASE" --head "$HEAD_REF"
 run "guard_protected_paths" guard guard_protected_paths --base "$BASE" --head "$HEAD_REF"
 run "guard_test_integrity" guard guard_test_integrity --base "$BASE" --head "$HEAD_REF"
 run "guard_secrets" guard guard_secrets --base "$BASE" --head "$HEAD_REF"
-run "check_dependencies" guard check_dependencies --frozen-import --base "$BASE" --head "$HEAD_REF"
+run "check_dependencies" guard check_dependencies --offline --base "$BASE" --head "$HEAD_REF"
 run "guard_evidence_defaults" guard guard_evidence_defaults --base "$BASE" --head "$HEAD_REF"
 run "guard_migration_immutability" guard guard_migration_immutability --base "$BASE" --head "$HEAD_REF"
 

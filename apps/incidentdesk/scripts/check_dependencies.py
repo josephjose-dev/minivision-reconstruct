@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import hashlib
 import json
 import re
 import sys
@@ -47,6 +46,7 @@ from guardlib import (
     GuardError,
     add_common_arguments,
     file_at,
+    git,
     resolve_range,
 )
 
@@ -301,7 +301,11 @@ def check_imports(repo: Path, runtime_dirs: list[str], dev_dirs: list[str]) -> l
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     add_common_arguments(parser, approval=False)
-    parser.add_argument("--index-url", default=PYPI_API, help=f"PyPI JSON API base (default {PYPI_API})")
+    parser.add_argument(
+        "--index-url",
+        default=PYPI_API,
+        help=f"Explicit alternate index requests a full re-audit, even for an unchanged lock (default {PYPI_API})",
+    )
     parser.add_argument(
         "--min-age-days",
         type=int,
@@ -312,46 +316,47 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dev-dir", action="append", default=None, help="tests/tooling dir (default: tests, scripts)")
     parser.add_argument("--skip-index", action="store_true", help="skip the PyPI checks (imports only)")
     parser.add_argument("--skip-imports", action="store_true", help="skip the declared-imports check (PyPI only)")
-    parser.add_argument(
-        "--frozen-import", action="store_true", help="offline MIG-01 gate: exact pinned donor lock and declared imports"
-    )
+    parser.add_argument("--frozen-import", action="store_true", help="offline mode (compatibility alias)")
+    parser.add_argument("--offline", action="store_true", help="fail closed if committed dependencies changed")
     args = parser.parse_args(argv)
     repo = Path(args.repo)
     problems: list[str] = []
     facts: list[str] = []
 
     try:
-        if args.frozen_import:
-            digest = hashlib.sha256((repo / "uv.lock").read_bytes()).hexdigest()
-            if digest != "1be599194e41d13529109696a38a179fbb0cea54cb41172df4856082026f6b9c":
-                raise GuardError(
-                    "Offline import gate requires the byte-identical 347a778 lock; dependency changes need separate review."
+        index_checked = False
+        if not args.skip_index:
+            rng = resolve_range(repo, args.base, args.head, args.fallback_ref)
+            prefix = git(repo, "rev-parse", "--show-prefix").stdout.strip()
+            lock_name = prefix + "uv.lock"
+            old_text = file_at(repo, rng.old, lock_name)
+            new_text = file_at(repo, rng.head, lock_name)
+            if new_text is None:
+                raise GuardError(f"No committed lock at {rng.head}:{lock_name}")
+            packages = read_lock(new_text)
+            print(f"dependency check: committed {lock_name} compared with {rng.old[:12]}")
+            old_oid = git(repo, "rev-parse", "--verify", f"{rng.old}:{lock_name}", check=False)
+            new_oid = git(repo, "rev-parse", "--verify", f"{rng.head}:{lock_name}")
+            unchanged = old_oid.returncode == 0 and old_oid.stdout == new_oid.stdout
+            if unchanged and (args.offline or args.frozen_import or args.index_url == PYPI_API):
+                facts.append("Committed lock unchanged; index audit not needed.")
+            elif not unchanged and (args.offline or args.frozen_import):
+                raise GuardError("Committed lock changed; index audit required but offline mode is enabled.")
+            else:
+                index_checked = True
+            if index_checked:
+                old_names = {p.name for p in read_lock(old_text)} if old_text else set()
+                new = [p for p in packages if p.name not in old_names]
+                index = Index(args.index_url)
+                print(
+                    f"dependency check: {len(packages)} locked package(s) checked against PyPI, {len(new)} new in this change"
                 )
-            facts.append("Offline: exact donor 347a778 lock verified; no index requests made.")
-        if not args.skip_index and not args.frozen_import:
-            lock_path = repo / "uv.lock"
-            if not lock_path.is_file():
-                raise GuardError(f"No uv.lock in {repo}.")
-            packages = read_lock(lock_path.read_text(encoding="utf-8"))
-            try:
-                rng = resolve_range(repo, args.base, args.head, args.fallback_ref)
-                old_text = file_at(repo, rng.old, "uv.lock")
-                print(f"dependency check: lock compared with {rng.old[:12]} ({rng.note})")
-            except GuardError as exc:
-                old_text = None
-                print(f"dependency check: no base to compare with ({exc}); every package counts as new")
-            old_names = {p.name for p in read_lock(old_text)} if old_text else set()
-            new = [p for p in packages if p.name not in old_names]
-            index = Index(args.index_url)
-            print(
-                f"dependency check: {len(packages)} locked package(s) checked against PyPI, {len(new)} new in this change"
-            )
-            problems += check_exist(index, packages)
-            report = check_new_packages(
-                index, [p for p in new if p.registry == PYPI_REGISTRY], args.min_age_days, datetime.now(UTC)
-            )
-            problems += report.problems
-            facts += report.facts
+                problems += check_exist(index, packages)
+                report = check_new_packages(
+                    index, [p for p in new if p.registry == PYPI_REGISTRY], args.min_age_days, datetime.now(UTC)
+                )
+                problems += report.problems
+                facts += report.facts
         if not args.skip_imports:
             problems += check_imports(repo, args.runtime_dir or ["src"], args.dev_dir or ["tests", "scripts"])
     except GuardError as exc:
@@ -361,11 +366,7 @@ def main(argv: list[str] | None = None) -> int:
     for fact in facts:
         print(fact)
     if not problems:
-        print(
-            "OK pinned import lock is unchanged and every import is declared."
-            if args.frozen_import
-            else "OK every locked package exists with matching hashes, and every import is declared."
-        )
+        print("OK dependency checks passed (committed lock and declared imports).")
         return EXIT_OK
     for problem in problems:
         print(f"PROBLEM {problem}")

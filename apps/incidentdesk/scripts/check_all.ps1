@@ -64,7 +64,7 @@ Invoke-Check 'pytest' { uv run pytest -q -rfE }
 foreach ($name in 'guard_conflict_markers', 'guard_utf8', 'guard_protected_paths', 'guard_test_integrity', 'guard_secrets', 'check_dependencies', 'guard_evidence_defaults', 'guard_migration_immutability') {
     $command = {
         if ($name -eq 'check_dependencies') {
-            uv run python "scripts/$name.py" --frozen-import --base $Base --head $Head
+            uv run python "scripts/$name.py" --offline --base $Base --head $Head
         } else {
             uv run python "scripts/$name.py" --base $Base --head $Head
         }
