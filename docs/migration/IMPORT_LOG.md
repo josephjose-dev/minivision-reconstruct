@@ -1822,193 +1822,199 @@ Source: josephjose-dev/RTA-ACCIDENT-AGENT, commit `347a778576861ef972236781bc3bd
 - `src/incident_report/truth_draft/drafting.py` (537c14629a06c191e8c1a9a18d82462acc451d9d): D8 evaluation
 - `src/incident_report/truth_draft/models.py` (d4ebd2160d795ab6b80c16185ce08bd580c8767a): D8 evaluation
 - `src/incident_report/truth_draft/review.py` (340ea1ae802f88c2307f865c920048e9e0157ed2): D8 evaluation
-- `tests/access_client.py` (97e52530c96b1b1aeff370046ddfd5e45b62846f): D8 evaluation
-- `tests/audit_test_helpers.py` (cd1dfb845947c8b59eaaa212f3695f56386df51b): D8 evaluation
-- `tests/collision_legacy_baseline.json` (db4ea1c6e3a62f69c89f8ac7de095699f4fc2655): D8 evaluation
-- `tests/conftest.py` (bcbfd798cbe81fd172a7490445bbaf9e6a11bd8a): D8 evaluation
-- `tests/css_tools.py` (a3e8dc5ba4666d4f517058e2262108822d523c41): D8 evaluation
-- `tests/drowsiness_legacy_baseline.json` (a730fad13df9627809e07557be14a7e337d3b6d3): D8 evaluation
-- `tests/fixtures/overview10_notes/I_MINOR_01_r1.json` (4f32fc50ecf2c341b1a39e7422548fb03c1cdd5c): D8 evaluation
-- `tests/fixtures/overview10_notes/I_MINOR_01_r2.json` (b800852e339e5473ea072829cff5832c07b96a03): D8 evaluation
-- `tests/fixtures/overview10_notes/I_MODERATE_04_r1.json` (39e6dd58c7db55f13f606e95f45f4aebf27b55e2): D8 evaluation
-- `tests/fixtures/overview10_notes/I_MODERATE_04_r1_offline.json` (042b9a9f62997c7ac3d7c26f3c2d2628787d4f7b): D8 evaluation
-- `tests/fixtures/overview10_notes/I_MODERATE_04_r2.json` (55b62e755ff92cc2f4a9dd3536678a6fb5e38a19): D8 evaluation
-- `tests/fixtures/overview10_notes/I_MODERATE_04_r2_offline.json` (9afc1b97142442ab8fe848d255c0fd57bff0148d): D8 evaluation
-- `tests/fixtures/overview10_notes/I_day1_r1.json` (23b29caff357304c1d7abc1ebc1fbfc9478ad29b): D8 evaluation
-- `tests/fixtures/overview10_notes/I_day1_r1_offline.json` (98e919bedc5f1f97fa45e2709fd6a19f696f6261): D8 evaluation
-- `tests/fixtures/overview10_notes/I_day1_r2.json` (5608897758a15a848d7bab6a308e695931c558ec): D8 evaluation
-- `tests/fixtures/overview10_notes/I_day1_r2_offline.json` (5d304eaef60e791eef019cd72f8be68b4baccbaf): D8 evaluation
-- `tests/fixtures/overview10_notes/I_video3_r1.json` (abd83af2fa500b1aedaf165bd2935770a8aa3b0e): D8 evaluation
-- `tests/fixtures/overview10_notes/I_video3_r1_offline.json` (3fb407ea30475183b1003b81fd4ad1cd7efd2c95): D8 evaluation
-- `tests/fixtures/overview10_notes/I_video3_r2.json` (eb60cdcf885171f49b8f64ec8f9de38bbc9ac30d): D8 evaluation
-- `tests/git_sandbox.py` (9787ad07e5cd6fe30f32ace99889c755cccb579c): D8 evaluation
-- `tests/manifest_builders.py` (e0a0ee96a36c5e8d5b062323cf1b27557f6139b1): D8 evaluation
-- `tests/one_pass_gate_replay.json` (23b2c7fe1703debc89274e5146a4aa29d8525749): D8 evaluation
-- `tests/overview10_helpers.py` (f32e665558182c065e635d41cdc70219e150ba88): D8 evaluation
-- `tests/overview11_helpers.py` (1009bf35a18697c244f7aba16e38a4a0fb7040e4): D8 evaluation
-- `tests/pgscratch.py` (55c0779079f9e17c3349e9406dd43e26df52a69c): D8 evaluation
-- `tests/phone_legacy_baseline.json` (7740fcb4d13fea4161dc777bd477f6bb14a09d00): D8 evaluation
-- `tests/processing_stream.test.cjs` (ff01c3060d37a0492a55c7505b7c90cc644bc990): D8 evaluation
-- `tests/referral_legacy_baseline.json` (6ed26ef047ffcbbc44a0c7b7f59fd6194829c1a0): D8 evaluation
-- `tests/replay_cases/case_01_two_party_contact/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-1.json` (b6a9d642563ef1447960a8ebe618d0f5a1430368): D8 evaluation
-- `tests/replay_cases/case_01_two_party_contact/clip_reference.json` (c4881324d81475464030a9d4424bf5294e7064fa): D8 evaluation
-- `tests/replay_cases/case_01_two_party_contact/contact_two_boxes.mp4` (e53c025f82941a1576a174e06b783bb0179b0e2b): D8 evaluation
-- `tests/replay_cases/case_01_two_party_contact/expected.json` (00d3febda078343d9bcd97c2608b946a27e3c953): D8 evaluation
-- `tests/replay_cases/case_02_no_contact/clip_reference.json` (590052be883280a75f1cd57b4eec4609846ed073): D8 evaluation
-- `tests/replay_cases/case_02_no_contact/expected.json` (5722cecc6687ba684eba9b7612708f577115877d): D8 evaluation
-- `tests/replay_cases/case_02_no_contact/ff386f2f532cb88caea205cdf2d93b6ec69e85069b03975a45340b16aa8f7771.overview-1.json` (abb45fbc00c39ff5c96f6b6086d68e5612648245): D8 evaluation
-- `tests/replay_cases/case_02_no_contact/no_contact_boxes.mp4` (7b1bfc396fc2d0ff3d0f9f897cac645b32c3c13d): D8 evaluation
-- `tests/replay_cases/case_03_citation_error_repair_fails/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-1-repair.json` (25fb6d2df6a70e468bdc0a464531b2bc75b8a89d): D8 evaluation
-- `tests/replay_cases/case_03_citation_error_repair_fails/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-1.json` (0d135b2018d87b47a9782c338b8119c677e42c06): D8 evaluation
-- `tests/replay_cases/case_03_citation_error_repair_fails/clip_reference.json` (64060e63dc88fb3f99c386d2438fa175007fd5f2): D8 evaluation
-- `tests/replay_cases/case_03_citation_error_repair_fails/contact_two_boxes.mp4` (e53c025f82941a1576a174e06b783bb0179b0e2b): D8 evaluation
-- `tests/replay_cases/case_03_citation_error_repair_fails/expected.json` (45ce71f075ca24e5d2548aa9dca1d158f84b7d47): D8 evaluation
-- `tests/replay_cases/case_04_citation_error_repaired/clip_reference.json` (a1e72a69e3f71b3dea67017b831d30db7af82eed): D8 evaluation
-- `tests/replay_cases/case_04_citation_error_repaired/expected.json` (7d7afd4aaca3e9e64491d10e6750f4959ad4d259): D8 evaluation
-- `tests/replay_cases/case_04_citation_error_repaired/ff386f2f532cb88caea205cdf2d93b6ec69e85069b03975a45340b16aa8f7771.overview-1-repair.json` (fb824d7bf008ccd59bb55090569f40dc129fe928): D8 evaluation
-- `tests/replay_cases/case_04_citation_error_repaired/ff386f2f532cb88caea205cdf2d93b6ec69e85069b03975a45340b16aa8f7771.overview-1.json` (5ed2def50c67afa03c50e89e20c52dca3e68b7d0): D8 evaluation
-- `tests/replay_cases/case_04_citation_error_repaired/no_contact_boxes.mp4` (7b1bfc396fc2d0ff3d0f9f897cac645b32c3c13d): D8 evaluation
-- `tests/replay_cases/case_05_walking_skeleton/0a45709f8b40e5c9a6669c7a99f5961591b3984d32f1bbd94cc87872bde37a05.skeleton-1.json` (69975005431908767ca6cb23b1479521b1bebba3): D8 evaluation
-- `tests/replay_cases/case_05_walking_skeleton/clip_reference.json` (f59d4f26a713b01665f91c939a61426ec4dd92cb): D8 evaluation
-- `tests/replay_cases/case_05_walking_skeleton/expected.json` (f43ccfc8899caae4528ae6ba26b498427ea3d481): D8 evaluation
-- `tests/replay_cases/case_06_structured_overview_2/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-2.json` (8aa8ab1b7da154695f9f1a09ef5fc2595a7c0b13): D8 evaluation
-- `tests/replay_cases/case_06_structured_overview_2/clip_reference.json` (d26f2a576a247733547c85be024baf5dbb3aceda): D8 evaluation
-- `tests/replay_cases/case_06_structured_overview_2/contact_two_boxes.mp4` (e53c025f82941a1576a174e06b783bb0179b0e2b): D8 evaluation
-- `tests/replay_cases/case_06_structured_overview_2/expected.json` (9e517d97b48508f59dace4148363c77bc3fb3955): D8 evaluation
-- `tests/replay_cases/case_07_browser_multiview/806f3198735472739356ec32e3d89e92e3d122403e9dbe73cb38e2e4d88c97ad.overview-2.json` (d53ee6456b993aeb2af626858530a2cf1e43dfc4): D8 evaluation
-- `tests/replay_cases/case_07_browser_multiview/README.md` (2b462b56a2186db7fd15c150ccf58c46dbbd0017): D8 evaluation
-- `tests/replay_cases/case_07_browser_multiview/ed84ac7be4e3dad6c13b85493a2dd514f8042f9bb94d18af7cf53aed2ec11278.overview-2.json` (1d413a1db296e04d17b9f21b46ae343ee95e5140): D8 evaluation
-- `tests/replay_cases/case_07_browser_multiview/exterior.mp4` (a76bbabc2519c95082854bceca31a632b5227256): D8 evaluation
-- `tests/replay_cases/case_07_browser_multiview/interior.mp4` (1d697463a78faecebcbf3243a526a12b9b053128): D8 evaluation
-- `tests/replay_harness.py` (bb9a9940e15157cea1f79915a093bcbb645891a0): D8 evaluation
-- `tests/synthetic_clips.py` (acdec19a5c0abb21b740ddf9e3b9eaf563231712): D8 evaluation
-- `tests/test_agreement_signal.py` (b3eacc03a79a926778aaca1cc5f976103ab56f30): D8 evaluation
-- `tests/test_audit.py` (21867784c234a8434b585f4ab18101d47f69443f): D8 evaluation
-- `tests/test_backup_restore.py` (bd2550b88793c1f22b9198647eab0cc8aedb5f70): D8 evaluation
-- `tests/test_benchmark.py` (5c90bf5eebf28670a3a903926fb43cc33f5dc6af): D8 evaluation
-- `tests/test_benchmark_alarm.py` (9d37d8bc2c17e66edc68434bead116256090bd77): D8 evaluation
-- `tests/test_benchmark_archive_contract.py` (31642ad3b9833ca6796cb1bc2884dcf5c57bc86c): D8 evaluation
-- `tests/test_benchmark_live.py` (5ef586a76c4b003a812420ae52a5545130bb0792): D8 evaluation
-- `tests/test_benchmark_matching.py` (58b5efd6328c44aa31baa57bffc2ded772111c90): D8 evaluation
-- `tests/test_benchmark_owner_map.py` (12f4937a1d6493fe5c256f9dd4f6a6771afab0c5): D8 evaluation
-- `tests/test_benchmark_preflight.py` (d0e3b8aa90d56c14748c8a1858e921274ce2b904): D8 evaluation
-- `tests/test_benchmark_probes.py` (6eef81921fc0057cbd9b7b795161c55c9d866377): D8 evaluation
-- `tests/test_benchmark_review_round2.py` (fc0c2dafb91dab6b06dcec95909697ba2d57b579): D8 evaluation
-- `tests/test_benchmark_statistics.py` (f95dc271253f83fb8d7a719bd0bd831aa40792c6): D8 evaluation
-- `tests/test_bilingual_labels.py` (dcbd7a49be4b60dadb0bf6a1bd09d082f1991101): D8 evaluation
-- `tests/test_browser_e2e.py` (3f09bc81de93556a2125e97ab75b173edde093ba): D8 evaluation
-- `tests/test_check_all_settings.py` (ea9850078b0bdb8008f950b21e3bbf1da66952b7): D8 evaluation
-- `tests/test_citation_validator.py` (227c6b9707a8ad48602eba12e505c2fcb0a8b270): D8 evaluation
-- `tests/test_collision_classification.py` (7b92019f7d77310db494e67431b7715ac9ec3dca): D8 evaluation
-- `tests/test_collision_pair_selection.py` (fecde832eb6f1b79348a2e9fe56ab78def0d4cb3): D8 evaluation
-- `tests/test_collision_recall_all_runs.py` (ac980e043851a1cd3a361323571c2c633654f568): D8 evaluation
-- `tests/test_consistency.py` (f888913c565f941d325e0ee6151f62ed01df0f5e): D8 evaluation
-- `tests/test_consistency_entry.py` (abfb7c4975233c136bd2aab51becc5ded07b140b): D8 evaluation
-- `tests/test_consistency_fines.py` (c8ad2720abd23bff5f697c3c4c52c29c36585c19): D8 evaluation
-- `tests/test_core_fault_rules.py` (1d2a69a1a4fdfa2221d3650b12c5276793fbeadf): D8 evaluation
-- `tests/test_crash_finder_motion.py` (c4fe86137b0bb0c07b2245f5c15a7821ef0dd22f): D8 evaluation
-- `tests/test_cross_view_contradictions.py` (925247f6a339a6be3b1706250e5b25d4744c5aa3): D8 evaluation
-- `tests/test_database_and_config.py` (c01ec358f9253cfe3c3b67b8f4c47980da90fa34): D8 evaluation
-- `tests/test_dataset_manifest.py` (6fffc848df59af945b5101d1a61c04c808e5d3e5): D8 evaluation
-- `tests/test_dense_party_merge.py` (8320625abcb431c6be8286d7c5593fd6ba071577): D8 evaluation
-- `tests/test_dense_pass.py` (76c70f67901290252ff1da1b656054fb0b89725e): D8 evaluation
-- `tests/test_distortions.py` (459f927b06940c7538b1b0ce7994f0fb6cfcfbfa): D8 evaluation
-- `tests/test_driver_observations.py` (a5cf682a3cf969ac4061744db0b445203278d9c6): D8 evaluation
-- `tests/test_drowsiness.py` (1b974d460e3c14728b756d570ca0e8453b496695): D8 evaluation
-- `tests/test_drowsiness_round2.py` (23d7ad927253d1d78a4c0851b5ade3942f7d8f40): D8 evaluation
-- `tests/test_e2e_key_rotation.py` (86a61dd3f0866e43e8363a15f6034f2a947c0135): D8 evaluation
-- `tests/test_early_upload.py` (6e1c5c5ade3aa10339e57badd330ff73f484842e): D8 evaluation
-- `tests/test_environment_config.py` (8744e52087d09a1fe2e8b14a862ffb3c297cf99b): D8 evaluation
-- `tests/test_evidence_intake.py` (27165181d82b16d366558e9e778845c01c2f0f83): D8 evaluation
-- `tests/test_evidence_storage.py` (415d83a92765cfff166801b204075df86733a173): D8 evaluation
-- `tests/test_facts_schema.py` (60b7d5633016667ea46354928bbbb8c28550c82e): D8 evaluation
-- `tests/test_fault_status_states.py` (692900295fc6c830d380f4aca398d2ee48e9fdfa): D8 evaluation
-- `tests/test_feedback.py` (264793a7835c37e835823ee12a00b3857c81ac5c): D8 evaluation
-- `tests/test_feedback_pull.py` (2606029965ed7697207ac764c64ff1b439ba0512): D8 evaluation
-- `tests/test_fine_mapping_research.py` (f466f8f71b1ae93c19991057f60d7c51c93d23de): D8 evaluation
-- `tests/test_fines.py` (698dd58891f5ff82a623462c607861886c99f91c): D8 evaluation
-- `tests/test_flagged_owner_ruling.py` (1e3f5c3e64159b76b379db481272062440fb92a1): D8 evaluation
-- `tests/test_google_sdk_wire.py` (8cc9c84237447f3a5e0f5656555aa319ae2e0b1f): D8 evaluation
-- `tests/test_google_video_transport.py` (4bebec2a6e59c7f430af74aad599a781f6fc3bbb): D8 evaluation
-- `tests/test_guard_approval.py` (c09a00b3e73b21db1eb9f16287b2721a5f12ecb1): D8 evaluation
-- `tests/test_guard_dependencies.py` (9d1f0aa9711fa8e2646018d7b5127725cc2be6ed): D8 evaluation
-- `tests/test_guard_evidence_defaults.py` (6cd4d97bbacd3784d5b98982f39e301b423d59c1): D8 evaluation
-- `tests/test_guard_migration_immutability.py` (e8f57bc20b5eceafbbf2a15868609e5b29ecaeb0): D8 evaluation
-- `tests/test_guard_owner_trailer.py` (608824fb0a4792ca7b7479b363a0cc064851e309): D8 evaluation
-- `tests/test_guard_protected_paths.py` (b57b34fc11e1ebe756bf418913d33e6d9f8dd231): D8 evaluation
-- `tests/test_guard_secrets.py` (afed04635d2a6fccff8855dfa99633b2ea2d8c33): D8 evaluation
-- `tests/test_guard_test_integrity.py` (21a9d4b0beadde505fa2361a28a6519459587267): D8 evaluation
-- `tests/test_guard_text.py` (082e8ce1c1250e84741f5f04c54ccb0e8400a676): D8 evaluation
-- `tests/test_hashing.py` (0d37a38e876471b7cba21ba6617bef68babd866f): D8 evaluation
-- `tests/test_incident_entry_point.py` (cfd69485c665e5b6778965a939b38d7c57677e63): D8 evaluation
-- `tests/test_incidents_list.py` (dff400915a541dbd9f5c90a593893b800277d485): D8 evaluation
-- `tests/test_invalid_report_rendering.py` (d9c0ba39765ef402982fddb114727054e06053ba): D8 evaluation
-- `tests/test_js_units.py` (7b9ab130dc804edc93051411500628b368a59a7d): D8 evaluation
-- `tests/test_keep_engine_reason.py` (ff9ca5ce775b15f77657eacedcb8fa67fdf7fcbc): D8 evaluation
-- `tests/test_live_gemini.py` (e8be28a5944827d83f59b030a6f29c4aac0b8321): D8 evaluation
-- `tests/test_location_conditions.py` (f9ed0c8e88170dd6f32676c4155002ddf10ba876): D8 evaluation
-- `tests/test_manifest_cli.py` (1ce750652d192c3a5aed63c18a6e6e8949fe87b8): D8 evaluation
-- `tests/test_manifest_fingerprints.py` (a5943608cca29ad0cbf2fcf99990c3e369284122): D8 evaluation
-- `tests/test_migrations.py` (9434b00acc2077a1b8d50ae6282cf27c50f167c9): D8 evaluation
-- `tests/test_motion_windows.py` (63fce5d2cfa726908d79feec3feddf68e50b670d): D8 evaluation
-- `tests/test_new_incident_screen.py` (e7a0c832e9eabac760aaf60d87a62e32c70e62ef): D8 evaluation
-- `tests/test_no_incident_factors.py` (2215c5d44145cd8fe601296bd01fd68cf5fb0e40): D8 evaluation
-- `tests/test_one_pass.py` (7c4808489c2bdd4d7805fb336174e1acfaa69381): D8 evaluation
-- `tests/test_override_labels.py` (fbf9d5327d13b4b8930abe00a8dc5db26f8bfe9b): D8 evaluation
-- `tests/test_overview10_consistency.py` (aa27ae9021d4fa81891c6ba8a63f046f8a54589a): D8 evaluation
-- `tests/test_overview10_contract.py` (049738b38894776ab9af19c095757e7df0322507): D8 evaluation
-- `tests/test_overview10_note_codes.py` (6808eabb375b9b3534decca8a9294d6a215d066e): D8 evaluation
-- `tests/test_overview10_parse.py` (e136f6def80e5a19ed726e7f76bf281cd5bc7a03): D8 evaluation
-- `tests/test_overview11_contract.py` (46199aa20184c5b6afd8f1565c313caa655188d8): D8 evaluation
-- `tests/test_overview11_events_prompt.py` (b56debb6133f6fa7926a102e9d6e975103def6e3): D8 evaluation
-- `tests/test_overview11_pair_confirmation.py` (d2b3d225340a6686922c85771318abd2784ddadb): D8 evaluation
-- `tests/test_overview11_parse.py` (253657581597bc71810379568d8a5804528a6f41): D8 evaluation
-- `tests/test_overview11_recovery.py` (0c45a1aaa9b6794d1b0b500156c324e89631bb16): D8 evaluation
-- `tests/test_overview11_replay.py` (eed9fabe085fbac2a8efd85c8b74a0ffb0c44e38): D8 evaluation
-- `tests/test_pair_guard_entry.py` (280829ccc9e26dec6817b66aa146d90320bc1905): D8 evaluation
-- `tests/test_part_plan.py` (681eae124e3ffc00b9add68d5106b1dce92a7003): D8 evaluation
-- `tests/test_parties_rendering.py` (320984857457eb9542e17b1746e03455d73a7ada): D8 evaluation
-- `tests/test_perf07_measurement.py` (d80a0698f62d059871aedc5ba4ed7528d0de4a93): D8 evaluation
-- `tests/test_perf07_policy.py` (7ba79ff7d10cf38d88330c8b64795d3cc32ed0fc): D8 evaluation
-- `tests/test_perf_concurrency.py` (934f00ab83427cd2c6985ef14cfc32ef3ff142cb): D8 evaluation
-- `tests/test_persistence.py` (0448f7e5059b13717391d93918518779a26ba96d): D8 evaluation
-- `tests/test_processing_screen.py` (88ea552e5f05adf9f19bd19564ce91abc9635428): D8 evaluation
-- `tests/test_prompt_required_facts.py` (c15a5ddc36f946082319ce00fa92e70d686b5c48): D8 evaluation
-- `tests/test_prompt_signal.py` (b6bc72a504aea88c7826026048c470fbb5f3b8c2): D8 evaluation
-- `tests/test_provider_error.py` (2007ff77735250d5b0fc97d70d640519fbd75844): D8 evaluation
-- `tests/test_questions.py` (3d0becdc31117f8cbd6a66f480536e8d0be7ac9b): D8 evaluation
-- `tests/test_referrals.py` (ab7824a1272ee9a4aaac508afde6eea501f4f4d2): D8 evaluation
-- `tests/test_referrals_round2.py` (e8d9b0274121acbb977da7101e575992d51bf419): D8 evaluation
-- `tests/test_repair_loop.py` (3bdd58167fc329092602b12625b1a1522665441a): D8 evaluation
-- `tests/test_replay_ai_connection.py` (6bc085c560342f27ffa838c608f2f2991a5f1d68): D8 evaluation
-- `tests/test_replay_harness.py` (97b982fc799f0ba73b49ad41f0d9d0b9ef11d45b): D8 evaluation
-- `tests/test_report_decisions.py` (56bad01e2c97c18bb2305fa357428c9a3f8c1030): D8 evaluation
-- `tests/test_report_guardrails.py` (619f2b95be526810db0a2f9ddb9729bf2f117988): D8 evaluation
-- `tests/test_report_parity.py` (ffb387d04c57c82db6f0f16da7b45a5fccf0ca5b): D8 evaluation
-- `tests/test_report_print.py` (b0e3fc92e7c9e1284606b5a918428f446dd9e1c3): D8 evaluation
-- `tests/test_report_template.py` (7c7ca7152160d5c7dd0aa5eb3bb8782e8a096f23): D8 evaluation
-- `tests/test_rescore_judge.py` (06bde07ca31cdc3da239ebc919dd05aa99cfc4a1): D8 evaluation
-- `tests/test_review_workspace.py` (726e341ff658de6190b3c017347470b682bc5e5f): D8 evaluation
-- `tests/test_review_workspace_r2.py` (fde75a1019726bf99f79b77eadf08554557a55fb): D8 evaluation
-- `tests/test_rule_engine_isolation.py` (f59f31e90782b2a801e13042a17321455e9e8baf): D8 evaluation
-- `tests/test_rules_catalogue_extensions.py` (117d786862b9eaf02370cd88aa3b49f7bd703579): D8 evaluation
-- `tests/test_rules_decree_law_14_2024.py` (5987a1f7cc4657a8acc910fd81d401729a508cdb): D8 evaluation
-- `tests/test_run_gate.py` (c1f3b715964ee0b12ff57f26333a262c169b4e52): D8 evaluation
-- `tests/test_runlog_repair.py` (7713800be37b844f1c11bf961a638fe2b6bc5b3f): D8 evaluation
-- `tests/test_sample_reports.py` (79a1410b25ef81681151ad8fdb87c8c3b0464b00): D8 evaluation
-- `tests/test_share_access.py` (d065d95dea91d7e91c103d3645137fa67ecd43cb): D8 evaluation
-- `tests/test_shipped_recording.py` (732674442d26740f7e4ad5150c32bc244f53fd35): D8 evaluation
-- `tests/test_single_analysis_run.py` (d81f759a00d16ca6d64a330e1fdb69fd5b16a6d9): D8 evaluation
-- `tests/test_smoke_help.py` (633cd0671ada0feacfdc142d5f4eaff01f0c5099): D8 evaluation
-- `tests/test_storyline.py` (4cd87d09eb4bf8582b6cdeecc986e16e0e19c304): D8 evaluation
-- `tests/test_storyline_entry.py` (9f57544849c24bba408b5447631e10498fdeaf3c): D8 evaluation
-- `tests/test_structured_facts.py` (c685375b5b92ec81afa83112558d0c7f71d8b1f3): D8 evaluation
-- `tests/test_truth_conflicts_review.py` (b4f5fea5b7bb766ff265baf1f879578fad75fb53): D8 evaluation
-- `tests/test_truth_draft.py` (e01159b7145685665eba8fb6ff482b8f02699250): D8 evaluation
-- `tests/test_ui_accessibility.py` (ecdc133ae06003c0a33b0e3575c88c6f2875135e): D8 evaluation
-- `tests/test_ui_shell.py` (0bc26444cb0757d56949f4544a1dab34809cea02): D8 evaluation
-- `tests/test_violations_fines.py` (6e5a09ff49e4d81ff3077b3a6a1a50abeadc4e98): D8 evaluation
-- `tests/test_web.py` (66bc61e25b6bbb33d34898e8ff3187c8df65b13a): D8 evaluation
-- `tests/test_web_admin.py` (556757b1503d91a1f319d689564220d01bc51f92): D8 evaluation
-- `tests/test_web_feedback.py` (728fcafdff7c1ea6a2c5295f3b28a7bdbadbdb5d): D8 evaluation
-- `tests/video_fixtures.py` (d1935c0ff65dcb78f5f769e1cd466fb901b21614): D8 evaluation
+- `tests/access_client.py` (97e52530c96b1b1aeff370046ddfd5e45b62846f): IMPORTED unchanged to `apps/incidentdesk/tests/access_client.py` (runtime test/support)
+- `tests/audit_test_helpers.py` (cd1dfb845947c8b59eaaa212f3695f56386df51b): IMPORTED unchanged to `apps/incidentdesk/tests/audit_test_helpers.py` (runtime test/support)
+- `tests/collision_legacy_baseline.json` (db4ea1c6e3a62f69c89f8ac7de095699f4fc2655): IMPORTED unchanged to `apps/incidentdesk/tests/collision_legacy_baseline.json` (runtime test/support)
+- `tests/conftest.py` (bcbfd798cbe81fd172a7490445bbaf9e6a11bd8a): IMPORTED unchanged to `apps/incidentdesk/tests/conftest.py` (runtime test/support)
+- `tests/css_tools.py` (a3e8dc5ba4666d4f517058e2262108822d523c41): IMPORTED unchanged to `apps/incidentdesk/tests/css_tools.py` (runtime test/support)
+- `tests/drowsiness_legacy_baseline.json` (a730fad13df9627809e07557be14a7e337d3b6d3): IMPORTED unchanged to `apps/incidentdesk/tests/drowsiness_legacy_baseline.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_MINOR_01_r1.json` (4f32fc50ecf2c341b1a39e7422548fb03c1cdd5c): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_MINOR_01_r1.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_MINOR_01_r2.json` (b800852e339e5473ea072829cff5832c07b96a03): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_MINOR_01_r2.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_MODERATE_04_r1.json` (39e6dd58c7db55f13f606e95f45f4aebf27b55e2): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_MODERATE_04_r1.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_MODERATE_04_r1_offline.json` (042b9a9f62997c7ac3d7c26f3c2d2628787d4f7b): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_MODERATE_04_r1_offline.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_MODERATE_04_r2.json` (55b62e755ff92cc2f4a9dd3536678a6fb5e38a19): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_MODERATE_04_r2.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_MODERATE_04_r2_offline.json` (9afc1b97142442ab8fe848d255c0fd57bff0148d): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_MODERATE_04_r2_offline.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_day1_r1.json` (23b29caff357304c1d7abc1ebc1fbfc9478ad29b): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_day1_r1.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_day1_r1_offline.json` (98e919bedc5f1f97fa45e2709fd6a19f696f6261): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_day1_r1_offline.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_day1_r2.json` (5608897758a15a848d7bab6a308e695931c558ec): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_day1_r2.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_day1_r2_offline.json` (5d304eaef60e791eef019cd72f8be68b4baccbaf): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_day1_r2_offline.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_video3_r1.json` (abd83af2fa500b1aedaf165bd2935770a8aa3b0e): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_video3_r1.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_video3_r1_offline.json` (3fb407ea30475183b1003b81fd4ad1cd7efd2c95): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_video3_r1_offline.json` (runtime test/support)
+- `tests/fixtures/overview10_notes/I_video3_r2.json` (eb60cdcf885171f49b8f64ec8f9de38bbc9ac30d): IMPORTED unchanged to `apps/incidentdesk/tests/fixtures/overview10_notes/I_video3_r2.json` (runtime test/support)
+- `tests/git_sandbox.py` (9787ad07e5cd6fe30f32ace99889c755cccb579c): D8: "dataset/
+- `tests/manifest_builders.py` (e0a0ee96a36c5e8d5b062323cf1b27557f6139b1): D8: "dataset/
+- `tests/one_pass_gate_replay.json` (23b2c7fe1703debc89274e5146a4aa29d8525749): IMPORTED unchanged to `apps/incidentdesk/tests/one_pass_gate_replay.json` (runtime test/support)
+- `tests/overview10_helpers.py` (f32e665558182c065e635d41cdc70219e150ba88): IMPORTED unchanged to `apps/incidentdesk/tests/overview10_helpers.py` (runtime test/support)
+- `tests/overview11_helpers.py` (1009bf35a18697c244f7aba16e38a4a0fb7040e4): IMPORTED unchanged to `apps/incidentdesk/tests/overview11_helpers.py` (runtime test/support)
+- `tests/pgscratch.py` (55c0779079f9e17c3349e9406dd43e26df52a69c): IMPORTED unchanged to `apps/incidentdesk/tests/pgscratch.py` (runtime test/support)
+- `tests/phone_legacy_baseline.json` (7740fcb4d13fea4161dc777bd477f6bb14a09d00): IMPORTED unchanged to `apps/incidentdesk/tests/phone_legacy_baseline.json` (runtime test/support)
+- `tests/processing_stream.test.cjs` (ff01c3060d37a0492a55c7505b7c90cc644bc990): IMPORTED unchanged to `apps/incidentdesk/tests/processing_stream.test.cjs` (runtime test/support)
+- `tests/referral_legacy_baseline.json` (6ed26ef047ffcbbc44a0c7b7f59fd6194829c1a0): IMPORTED unchanged to `apps/incidentdesk/tests/referral_legacy_baseline.json` (runtime test/support)
+- `tests/replay_cases/case_01_two_party_contact/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-1.json` (b6a9d642563ef1447960a8ebe618d0f5a1430368): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_01_two_party_contact/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-1.json` (runtime test/support)
+- `tests/replay_cases/case_01_two_party_contact/clip_reference.json` (c4881324d81475464030a9d4424bf5294e7064fa): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_01_two_party_contact/clip_reference.json` (runtime test/support)
+- `tests/replay_cases/case_01_two_party_contact/contact_two_boxes.mp4` (e53c025f82941a1576a174e06b783bb0179b0e2b): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_01_two_party_contact/contact_two_boxes.mp4` (runtime test/support)
+- `tests/replay_cases/case_01_two_party_contact/expected.json` (00d3febda078343d9bcd97c2608b946a27e3c953): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_01_two_party_contact/expected.json` (runtime test/support)
+- `tests/replay_cases/case_02_no_contact/clip_reference.json` (590052be883280a75f1cd57b4eec4609846ed073): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_02_no_contact/clip_reference.json` (runtime test/support)
+- `tests/replay_cases/case_02_no_contact/expected.json` (5722cecc6687ba684eba9b7612708f577115877d): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_02_no_contact/expected.json` (runtime test/support)
+- `tests/replay_cases/case_02_no_contact/ff386f2f532cb88caea205cdf2d93b6ec69e85069b03975a45340b16aa8f7771.overview-1.json` (abb45fbc00c39ff5c96f6b6086d68e5612648245): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_02_no_contact/ff386f2f532cb88caea205cdf2d93b6ec69e85069b03975a45340b16aa8f7771.overview-1.json` (runtime test/support)
+- `tests/replay_cases/case_02_no_contact/no_contact_boxes.mp4` (7b1bfc396fc2d0ff3d0f9f897cac645b32c3c13d): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_02_no_contact/no_contact_boxes.mp4` (runtime test/support)
+- `tests/replay_cases/case_03_citation_error_repair_fails/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-1-repair.json` (25fb6d2df6a70e468bdc0a464531b2bc75b8a89d): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_03_citation_error_repair_fails/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-1-repair.json` (runtime test/support)
+- `tests/replay_cases/case_03_citation_error_repair_fails/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-1.json` (0d135b2018d87b47a9782c338b8119c677e42c06): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_03_citation_error_repair_fails/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-1.json` (runtime test/support)
+- `tests/replay_cases/case_03_citation_error_repair_fails/clip_reference.json` (64060e63dc88fb3f99c386d2438fa175007fd5f2): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_03_citation_error_repair_fails/clip_reference.json` (runtime test/support)
+- `tests/replay_cases/case_03_citation_error_repair_fails/contact_two_boxes.mp4` (e53c025f82941a1576a174e06b783bb0179b0e2b): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_03_citation_error_repair_fails/contact_two_boxes.mp4` (runtime test/support)
+- `tests/replay_cases/case_03_citation_error_repair_fails/expected.json` (45ce71f075ca24e5d2548aa9dca1d158f84b7d47): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_03_citation_error_repair_fails/expected.json` (runtime test/support)
+- `tests/replay_cases/case_04_citation_error_repaired/clip_reference.json` (a1e72a69e3f71b3dea67017b831d30db7af82eed): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_04_citation_error_repaired/clip_reference.json` (runtime test/support)
+- `tests/replay_cases/case_04_citation_error_repaired/expected.json` (7d7afd4aaca3e9e64491d10e6750f4959ad4d259): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_04_citation_error_repaired/expected.json` (runtime test/support)
+- `tests/replay_cases/case_04_citation_error_repaired/ff386f2f532cb88caea205cdf2d93b6ec69e85069b03975a45340b16aa8f7771.overview-1-repair.json` (fb824d7bf008ccd59bb55090569f40dc129fe928): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_04_citation_error_repaired/ff386f2f532cb88caea205cdf2d93b6ec69e85069b03975a45340b16aa8f7771.overview-1-repair.json` (runtime test/support)
+- `tests/replay_cases/case_04_citation_error_repaired/ff386f2f532cb88caea205cdf2d93b6ec69e85069b03975a45340b16aa8f7771.overview-1.json` (5ed2def50c67afa03c50e89e20c52dca3e68b7d0): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_04_citation_error_repaired/ff386f2f532cb88caea205cdf2d93b6ec69e85069b03975a45340b16aa8f7771.overview-1.json` (runtime test/support)
+- `tests/replay_cases/case_04_citation_error_repaired/no_contact_boxes.mp4` (7b1bfc396fc2d0ff3d0f9f897cac645b32c3c13d): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_04_citation_error_repaired/no_contact_boxes.mp4` (runtime test/support)
+- `tests/replay_cases/case_05_walking_skeleton/0a45709f8b40e5c9a6669c7a99f5961591b3984d32f1bbd94cc87872bde37a05.skeleton-1.json` (69975005431908767ca6cb23b1479521b1bebba3): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_05_walking_skeleton/0a45709f8b40e5c9a6669c7a99f5961591b3984d32f1bbd94cc87872bde37a05.skeleton-1.json` (runtime test/support)
+- `tests/replay_cases/case_05_walking_skeleton/clip_reference.json` (f59d4f26a713b01665f91c939a61426ec4dd92cb): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_05_walking_skeleton/clip_reference.json` (runtime test/support)
+- `tests/replay_cases/case_05_walking_skeleton/expected.json` (f43ccfc8899caae4528ae6ba26b498427ea3d481): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_05_walking_skeleton/expected.json` (runtime test/support)
+- `tests/replay_cases/case_06_structured_overview_2/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-2.json` (8aa8ab1b7da154695f9f1a09ef5fc2595a7c0b13): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_06_structured_overview_2/7795a6cbc87871b731a4cabf5bb3f026520b55079c9dda41d86435279de261e7.overview-2.json` (runtime test/support)
+- `tests/replay_cases/case_06_structured_overview_2/clip_reference.json` (d26f2a576a247733547c85be024baf5dbb3aceda): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_06_structured_overview_2/clip_reference.json` (runtime test/support)
+- `tests/replay_cases/case_06_structured_overview_2/contact_two_boxes.mp4` (e53c025f82941a1576a174e06b783bb0179b0e2b): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_06_structured_overview_2/contact_two_boxes.mp4` (runtime test/support)
+- `tests/replay_cases/case_06_structured_overview_2/expected.json` (9e517d97b48508f59dace4148363c77bc3fb3955): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_06_structured_overview_2/expected.json` (runtime test/support)
+- `tests/replay_cases/case_07_browser_multiview/806f3198735472739356ec32e3d89e92e3d122403e9dbe73cb38e2e4d88c97ad.overview-2.json` (d53ee6456b993aeb2af626858530a2cf1e43dfc4): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_07_browser_multiview/806f3198735472739356ec32e3d89e92e3d122403e9dbe73cb38e2e4d88c97ad.overview-2.json` (runtime test/support)
+- `tests/replay_cases/case_07_browser_multiview/README.md` (2b462b56a2186db7fd15c150ccf58c46dbbd0017): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_07_browser_multiview/README.md` (runtime test/support)
+- `tests/replay_cases/case_07_browser_multiview/ed84ac7be4e3dad6c13b85493a2dd514f8042f9bb94d18af7cf53aed2ec11278.overview-2.json` (1d413a1db296e04d17b9f21b46ae343ee95e5140): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_07_browser_multiview/ed84ac7be4e3dad6c13b85493a2dd514f8042f9bb94d18af7cf53aed2ec11278.overview-2.json` (runtime test/support)
+- `tests/replay_cases/case_07_browser_multiview/exterior.mp4` (a76bbabc2519c95082854bceca31a632b5227256): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_07_browser_multiview/exterior.mp4` (runtime test/support)
+- `tests/replay_cases/case_07_browser_multiview/interior.mp4` (1d697463a78faecebcbf3243a526a12b9b053128): IMPORTED unchanged to `apps/incidentdesk/tests/replay_cases/case_07_browser_multiview/interior.mp4` (runtime test/support)
+- `tests/replay_harness.py` (bb9a9940e15157cea1f79915a093bcbb645891a0): IMPORTED unchanged to `apps/incidentdesk/tests/replay_harness.py` (runtime test/support)
+- `tests/synthetic_clips.py` (acdec19a5c0abb21b740ddf9e3b9eaf563231712): IMPORTED unchanged to `apps/incidentdesk/tests/synthetic_clips.py` (runtime test/support)
+- `tests/test_agreement_signal.py` (b3eacc03a79a926778aaca1cc5f976103ab56f30): IMPORTED unchanged to `apps/incidentdesk/tests/test_agreement_signal.py` (runtime test/support)
+- `tests/test_audit.py` (21867784c234a8434b585f4ab18101d47f69443f): IMPORTED unchanged to `apps/incidentdesk/tests/test_audit.py` (runtime test/support)
+- `tests/test_backup_restore.py` (bd2550b88793c1f22b9198647eab0cc8aedb5f70): IMPORTED unchanged to `apps/incidentdesk/tests/test_backup_restore.py` (runtime test/support)
+- `tests/test_benchmark.py` (5c90bf5eebf28670a3a903926fb43cc33f5dc6af): D8: "dataset/, incident_report.benchmark, incident_report.manifest, incident_report.truth_draft
+- `tests/test_benchmark_alarm.py` (9d37d8bc2c17e66edc68434bead116256090bd77): D8: incident_report.benchmark
+- `tests/test_benchmark_archive_contract.py` (31642ad3b9833ca6796cb1bc2884dcf5c57bc86c): D8: "dataset/, "results/, incident_report.benchmark, incident_report.manifest
+- `tests/test_benchmark_live.py` (5ef586a76c4b003a812420ae52a5545130bb0792): D8: incident_report.benchmark, incident_report.manifest, incident_report.truth_draft
+- `tests/test_benchmark_matching.py` (58b5efd6328c44aa31baa57bffc2ded772111c90): D8: incident_report.benchmark, incident_report.truth_draft
+- `tests/test_benchmark_owner_map.py` (12f4937a1d6493fe5c256f9dd4f6a6771afab0c5): D8: "dataset/, incident_report.benchmark, incident_report.manifest, incident_report.truth_draft
+- `tests/test_benchmark_preflight.py` (d0e3b8aa90d56c14748c8a1858e921274ce2b904): D8: "dataset/, "results", incident_report.benchmark, incident_report.manifest
+- `tests/test_benchmark_probes.py` (6eef81921fc0057cbd9b7b795161c55c9d866377): D8: "dataset/, "results", /results/, incident_report.benchmark, incident_report.manifest
+- `tests/test_benchmark_review_round2.py` (fc0c2dafb91dab6b06dcec95909697ba2d57b579): D8: "dataset/, incident_report.benchmark, incident_report.manifest
+- `tests/test_benchmark_statistics.py` (f95dc271253f83fb8d7a719bd0bd831aa40792c6): D8: incident_report.benchmark
+- `tests/test_bilingual_labels.py` (dcbd7a49be4b60dadb0bf6a1bd09d082f1991101): IMPORTED unchanged to `apps/incidentdesk/tests/test_bilingual_labels.py` (runtime test/support)
+- `tests/test_browser_e2e.py` (3f09bc81de93556a2125e97ab75b173edde093ba): D8: "dataset/, "results/
+- `tests/test_check_all_settings.py` (ea9850078b0bdb8008f950b21e3bbf1da66952b7): D8: helper dependency tests/git_sandbox.py
+- `tests/test_citation_validator.py` (227c6b9707a8ad48602eba12e505c2fcb0a8b270): IMPORTED unchanged to `apps/incidentdesk/tests/test_citation_validator.py` (runtime test/support)
+- `tests/test_collision_classification.py` (7b92019f7d77310db494e67431b7715ac9ec3dca): IMPORTED unchanged to `apps/incidentdesk/tests/test_collision_classification.py` (runtime test/support)
+- `tests/test_collision_pair_selection.py` (fecde832eb6f1b79348a2e9fe56ab78def0d4cb3): IMPORTED unchanged to `apps/incidentdesk/tests/test_collision_pair_selection.py` (runtime test/support)
+- `tests/test_collision_recall_all_runs.py` (ac980e043851a1cd3a361323571c2c633654f568): IMPORTED unchanged to `apps/incidentdesk/tests/test_collision_recall_all_runs.py` (runtime test/support)
+- `tests/test_consistency.py` (f888913c565f941d325e0ee6151f62ed01df0f5e): IMPORTED unchanged to `apps/incidentdesk/tests/test_consistency.py` (runtime test/support)
+- `tests/test_consistency_entry.py` (abfb7c4975233c136bd2aab51becc5ded07b140b): IMPORTED unchanged to `apps/incidentdesk/tests/test_consistency_entry.py` (runtime test/support)
+- `tests/test_consistency_fines.py` (c8ad2720abd23bff5f697c3c4c52c29c36585c19): IMPORTED unchanged to `apps/incidentdesk/tests/test_consistency_fines.py` (runtime test/support)
+- `tests/test_core_fault_rules.py` (1d2a69a1a4fdfa2221d3650b12c5276793fbeadf): IMPORTED unchanged to `apps/incidentdesk/tests/test_core_fault_rules.py` (runtime test/support)
+- `tests/test_crash_finder_motion.py` (c4fe86137b0bb0c07b2245f5c15a7821ef0dd22f): D8: "dataset/
+- `tests/test_cross_view_contradictions.py` (925247f6a339a6be3b1706250e5b25d4744c5aa3): IMPORTED unchanged to `apps/incidentdesk/tests/test_cross_view_contradictions.py` (runtime test/support)
+- `tests/test_database_and_config.py` (c01ec358f9253cfe3c3b67b8f4c47980da90fa34): IMPORTED unchanged to `apps/incidentdesk/tests/test_database_and_config.py` (runtime test/support)
+- `tests/test_dataset_manifest.py` (6fffc848df59af945b5101d1a61c04c808e5d3e5): D8: "dataset/, 'dataset/, incident_report.manifest
+- `tests/test_dense_party_merge.py` (8320625abcb431c6be8286d7c5593fd6ba071577): IMPORTED unchanged to `apps/incidentdesk/tests/test_dense_party_merge.py` (runtime test/support)
+- `tests/test_dense_pass.py` (76c70f67901290252ff1da1b656054fb0b89725e): IMPORTED unchanged to `apps/incidentdesk/tests/test_dense_pass.py` (runtime test/support)
+- `tests/test_distortions.py` (459f927b06940c7538b1b0ce7994f0fb6cfcfbfa): D8: "dataset/, "results", "results/, incident_report.benchmark, incident_report.manifest, incident_report.truth_draft
+- `tests/test_driver_observations.py` (a5cf682a3cf969ac4061744db0b445203278d9c6): IMPORTED unchanged to `apps/incidentdesk/tests/test_driver_observations.py` (runtime test/support)
+- `tests/test_drowsiness.py` (1b974d460e3c14728b756d570ca0e8453b496695): IMPORTED unchanged to `apps/incidentdesk/tests/test_drowsiness.py` (runtime test/support)
+- `tests/test_drowsiness_round2.py` (23d7ad927253d1d78a4c0851b5ade3942f7d8f40): IMPORTED unchanged to `apps/incidentdesk/tests/test_drowsiness_round2.py` (runtime test/support)
+- `tests/test_e2e_key_rotation.py` (86a61dd3f0866e43e8363a15f6034f2a947c0135): D8: helper dependency tests/test_browser_e2e.py
+- `tests/test_early_upload.py` (6e1c5c5ade3aa10339e57badd330ff73f484842e): IMPORTED unchanged to `apps/incidentdesk/tests/test_early_upload.py` (runtime test/support)
+- `tests/test_environment_config.py` (8744e52087d09a1fe2e8b14a862ffb3c297cf99b): IMPORTED unchanged to `apps/incidentdesk/tests/test_environment_config.py` (runtime test/support)
+- `tests/test_evidence_intake.py` (27165181d82b16d366558e9e778845c01c2f0f83): IMPORTED unchanged to `apps/incidentdesk/tests/test_evidence_intake.py` (runtime test/support)
+- `tests/test_evidence_storage.py` (415d83a92765cfff166801b204075df86733a173): IMPORTED unchanged to `apps/incidentdesk/tests/test_evidence_storage.py` (runtime test/support)
+- `tests/test_facts_schema.py` (60b7d5633016667ea46354928bbbb8c28550c82e): IMPORTED unchanged to `apps/incidentdesk/tests/test_facts_schema.py` (runtime test/support)
+- `tests/test_fault_status_states.py` (692900295fc6c830d380f4aca398d2ee48e9fdfa): IMPORTED unchanged to `apps/incidentdesk/tests/test_fault_status_states.py` (runtime test/support)
+- `tests/test_feedback.py` (264793a7835c37e835823ee12a00b3857c81ac5c): IMPORTED unchanged to `apps/incidentdesk/tests/test_feedback.py` (runtime test/support)
+- `tests/test_feedback_pull.py` (2606029965ed7697207ac764c64ff1b439ba0512): IMPORTED unchanged to `apps/incidentdesk/tests/test_feedback_pull.py` (runtime test/support)
+- `tests/test_fine_mapping_research.py` (f466f8f71b1ae93c19991057f60d7c51c93d23de): IMPORTED unchanged to `apps/incidentdesk/tests/test_fine_mapping_research.py` (runtime test/support)
+- `tests/test_fines.py` (698dd58891f5ff82a623462c607861886c99f91c): IMPORTED unchanged to `apps/incidentdesk/tests/test_fines.py` (runtime test/support)
+- `tests/test_flagged_owner_ruling.py` (1e3f5c3e64159b76b379db481272062440fb92a1): IMPORTED unchanged to `apps/incidentdesk/tests/test_flagged_owner_ruling.py` (runtime test/support)
+- `tests/test_google_sdk_wire.py` (8cc9c84237447f3a5e0f5656555aa319ae2e0b1f): IMPORTED unchanged to `apps/incidentdesk/tests/test_google_sdk_wire.py` (runtime test/support)
+- `tests/test_google_video_transport.py` (4bebec2a6e59c7f430af74aad599a781f6fc3bbb): IMPORTED unchanged to `apps/incidentdesk/tests/test_google_video_transport.py` (runtime test/support)
+- `tests/test_guard_approval.py` (c09a00b3e73b21db1eb9f16287b2721a5f12ecb1): IMPORTED unchanged to `apps/incidentdesk/tests/test_guard_approval.py` (runtime test/support)
+- `tests/test_guard_dependencies.py` (9d1f0aa9711fa8e2646018d7b5127725cc2be6ed): D8: helper dependency tests/git_sandbox.py
+- `tests/test_guard_evidence_defaults.py` (6cd4d97bbacd3784d5b98982f39e301b423d59c1): IMPORTED unchanged to `apps/incidentdesk/tests/test_guard_evidence_defaults.py` (runtime test/support)
+- `tests/test_guard_migration_immutability.py` (e8f57bc20b5eceafbbf2a15868609e5b29ecaeb0): IMPORTED unchanged to `apps/incidentdesk/tests/test_guard_migration_immutability.py` (runtime test/support)
+- `tests/test_guard_owner_trailer.py` (608824fb0a4792ca7b7479b363a0cc064851e309): D8: "dataset/
+- `tests/test_guard_protected_paths.py` (b57b34fc11e1ebe756bf418913d33e6d9f8dd231): D8: "dataset/
+- `tests/test_guard_secrets.py` (afed04635d2a6fccff8855dfa99633b2ea2d8c33): D8: helper dependency tests/git_sandbox.py
+- `tests/test_guard_test_integrity.py` (21a9d4b0beadde505fa2361a28a6519459587267): D8: helper dependency tests/git_sandbox.py
+- `tests/test_guard_text.py` (082e8ce1c1250e84741f5f04c54ccb0e8400a676): D8: helper dependency tests/git_sandbox.py
+- `tests/test_hashing.py` (0d37a38e876471b7cba21ba6617bef68babd866f): IMPORTED unchanged to `apps/incidentdesk/tests/test_hashing.py` (runtime test/support)
+- `tests/test_incident_entry_point.py` (cfd69485c665e5b6778965a939b38d7c57677e63): IMPORTED unchanged to `apps/incidentdesk/tests/test_incident_entry_point.py` (runtime test/support)
+- `tests/test_incidents_list.py` (dff400915a541dbd9f5c90a593893b800277d485): IMPORTED unchanged to `apps/incidentdesk/tests/test_incidents_list.py` (runtime test/support)
+- `tests/test_invalid_report_rendering.py` (d9c0ba39765ef402982fddb114727054e06053ba): IMPORTED unchanged to `apps/incidentdesk/tests/test_invalid_report_rendering.py` (runtime test/support)
+- `tests/test_js_units.py` (7b9ab130dc804edc93051411500628b368a59a7d): IMPORTED unchanged to `apps/incidentdesk/tests/test_js_units.py` (runtime test/support)
+- `tests/test_keep_engine_reason.py` (ff9ca5ce775b15f77657eacedcb8fa67fdf7fcbc): IMPORTED unchanged to `apps/incidentdesk/tests/test_keep_engine_reason.py` (runtime test/support)
+- `tests/test_live_gemini.py` (e8be28a5944827d83f59b030a6f29c4aac0b8321): IMPORTED unchanged to `apps/incidentdesk/tests/test_live_gemini.py` (runtime test/support)
+- `tests/test_location_conditions.py` (f9ed0c8e88170dd6f32676c4155002ddf10ba876): IMPORTED unchanged to `apps/incidentdesk/tests/test_location_conditions.py` (runtime test/support)
+- `tests/test_manifest_cli.py` (1ce750652d192c3a5aed63c18a6e6e8949fe87b8): D8: "dataset", "dataset/, incident_report.manifest
+- `tests/test_manifest_fingerprints.py` (a5943608cca29ad0cbf2fcf99990c3e369284122): D8: "dataset/, incident_report.manifest
+- `tests/test_migrations.py` (9434b00acc2077a1b8d50ae6282cf27c50f167c9): IMPORTED unchanged to `apps/incidentdesk/tests/test_migrations.py` (runtime test/support)
+- `tests/test_motion_windows.py` (63fce5d2cfa726908d79feec3feddf68e50b670d): IMPORTED unchanged to `apps/incidentdesk/tests/test_motion_windows.py` (runtime test/support)
+- `tests/test_new_incident_screen.py` (e7a0c832e9eabac760aaf60d87a62e32c70e62ef): IMPORTED unchanged to `apps/incidentdesk/tests/test_new_incident_screen.py` (runtime test/support)
+- `tests/test_no_incident_factors.py` (2215c5d44145cd8fe601296bd01fd68cf5fb0e40): IMPORTED unchanged to `apps/incidentdesk/tests/test_no_incident_factors.py` (runtime test/support)
+- `tests/test_one_pass.py` (7c4808489c2bdd4d7805fb336174e1acfaa69381): D8: "dataset/, incident_report.benchmark, incident_report.manifest
+- `tests/test_override_labels.py` (fbf9d5327d13b4b8930abe00a8dc5db26f8bfe9b): D8: "dataset/, incident_report.manifest, incident_report.override_labels
+- `tests/test_overview10_consistency.py` (aa27ae9021d4fa81891c6ba8a63f046f8a54589a): IMPORTED unchanged to `apps/incidentdesk/tests/test_overview10_consistency.py` (runtime test/support)
+- `tests/test_overview10_contract.py` (049738b38894776ab9af19c095757e7df0322507): IMPORTED unchanged to `apps/incidentdesk/tests/test_overview10_contract.py` (runtime test/support)
+- `tests/test_overview10_note_codes.py` (6808eabb375b9b3534decca8a9294d6a215d066e): IMPORTED unchanged to `apps/incidentdesk/tests/test_overview10_note_codes.py` (runtime test/support)
+- `tests/test_overview10_parse.py` (e136f6def80e5a19ed726e7f76bf281cd5bc7a03): IMPORTED unchanged to `apps/incidentdesk/tests/test_overview10_parse.py` (runtime test/support)
+- `tests/test_overview11_contract.py` (46199aa20184c5b6afd8f1565c313caa655188d8): IMPORTED unchanged to `apps/incidentdesk/tests/test_overview11_contract.py` (runtime test/support)
+- `tests/test_overview11_events_prompt.py` (b56debb6133f6fa7926a102e9d6e975103def6e3): IMPORTED unchanged to `apps/incidentdesk/tests/test_overview11_events_prompt.py` (runtime test/support)
+- `tests/test_overview11_pair_confirmation.py` (d2b3d225340a6686922c85771318abd2784ddadb): IMPORTED unchanged to `apps/incidentdesk/tests/test_overview11_pair_confirmation.py` (runtime test/support)
+- `tests/test_overview11_parse.py` (253657581597bc71810379568d8a5804528a6f41): IMPORTED unchanged to `apps/incidentdesk/tests/test_overview11_parse.py` (runtime test/support)
+- `tests/test_overview11_recovery.py` (0c45a1aaa9b6794d1b0b500156c324e89631bb16): IMPORTED unchanged to `apps/incidentdesk/tests/test_overview11_recovery.py` (runtime test/support)
+- `tests/test_overview11_replay.py` (eed9fabe085fbac2a8efd85c8b74a0ffb0c44e38): D8: "results"
+- `tests/test_pair_guard_entry.py` (280829ccc9e26dec6817b66aa146d90320bc1905): IMPORTED unchanged to `apps/incidentdesk/tests/test_pair_guard_entry.py` (runtime test/support)
+- `tests/test_part_plan.py` (681eae124e3ffc00b9add68d5106b1dce92a7003): IMPORTED unchanged to `apps/incidentdesk/tests/test_part_plan.py` (runtime test/support)
+- `tests/test_parties_rendering.py` (320984857457eb9542e17b1746e03455d73a7ada): IMPORTED unchanged to `apps/incidentdesk/tests/test_parties_rendering.py` (runtime test/support)
+- `tests/test_perf07_measurement.py` (d80a0698f62d059871aedc5ba4ed7528d0de4a93): D8: incident_report.benchmark
+- `tests/test_perf07_policy.py` (7ba79ff7d10cf38d88330c8b64795d3cc32ed0fc): IMPORTED unchanged to `apps/incidentdesk/tests/test_perf07_policy.py` (runtime test/support)
+- `tests/test_perf_concurrency.py` (934f00ab83427cd2c6985ef14cfc32ef3ff142cb): IMPORTED unchanged to `apps/incidentdesk/tests/test_perf_concurrency.py` (runtime test/support)
+- `tests/test_persistence.py` (0448f7e5059b13717391d93918518779a26ba96d): IMPORTED unchanged to `apps/incidentdesk/tests/test_persistence.py` (runtime test/support)
+- `tests/test_processing_screen.py` (88ea552e5f05adf9f19bd19564ce91abc9635428): IMPORTED unchanged to `apps/incidentdesk/tests/test_processing_screen.py` (runtime test/support)
+- `tests/test_prompt_required_facts.py` (c15a5ddc36f946082319ce00fa92e70d686b5c48): IMPORTED unchanged to `apps/incidentdesk/tests/test_prompt_required_facts.py` (runtime test/support)
+- `tests/test_prompt_signal.py` (b6bc72a504aea88c7826026048c470fbb5f3b8c2): IMPORTED unchanged to `apps/incidentdesk/tests/test_prompt_signal.py` (runtime test/support)
+- `tests/test_provider_error.py` (2007ff77735250d5b0fc97d70d640519fbd75844): IMPORTED unchanged to `apps/incidentdesk/tests/test_provider_error.py` (runtime test/support)
+- `tests/test_questions.py` (3d0becdc31117f8cbd6a66f480536e8d0be7ac9b): IMPORTED unchanged to `apps/incidentdesk/tests/test_questions.py` (runtime test/support)
+- `tests/test_referrals.py` (ab7824a1272ee9a4aaac508afde6eea501f4f4d2): IMPORTED unchanged to `apps/incidentdesk/tests/test_referrals.py` (runtime test/support)
+- `tests/test_referrals_round2.py` (e8d9b0274121acbb977da7101e575992d51bf419): IMPORTED unchanged to `apps/incidentdesk/tests/test_referrals_round2.py` (runtime test/support)
+- `tests/test_repair_loop.py` (3bdd58167fc329092602b12625b1a1522665441a): IMPORTED unchanged to `apps/incidentdesk/tests/test_repair_loop.py` (runtime test/support)
+- `tests/test_replay_ai_connection.py` (6bc085c560342f27ffa838c608f2f2991a5f1d68): IMPORTED unchanged to `apps/incidentdesk/tests/test_replay_ai_connection.py` (runtime test/support)
+- `tests/test_replay_harness.py` (97b982fc799f0ba73b49ad41f0d9d0b9ef11d45b): IMPORTED unchanged to `apps/incidentdesk/tests/test_replay_harness.py` (runtime test/support)
+- `tests/test_report_decisions.py` (56bad01e2c97c18bb2305fa357428c9a3f8c1030): IMPORTED unchanged to `apps/incidentdesk/tests/test_report_decisions.py` (runtime test/support)
+- `tests/test_report_guardrails.py` (619f2b95be526810db0a2f9ddb9729bf2f117988): IMPORTED unchanged to `apps/incidentdesk/tests/test_report_guardrails.py` (runtime test/support)
+- `tests/test_report_parity.py` (ffb387d04c57c82db6f0f16da7b45a5fccf0ca5b): IMPORTED unchanged to `apps/incidentdesk/tests/test_report_parity.py` (runtime test/support)
+- `tests/test_report_print.py` (b0e3fc92e7c9e1284606b5a918428f446dd9e1c3): IMPORTED unchanged to `apps/incidentdesk/tests/test_report_print.py` (runtime test/support)
+- `tests/test_report_template.py` (7c7ca7152160d5c7dd0aa5eb3bb8782e8a096f23): IMPORTED unchanged to `apps/incidentdesk/tests/test_report_template.py` (runtime test/support)
+- `tests/test_rescore_judge.py` (06bde07ca31cdc3da239ebc919dd05aa99cfc4a1): D8: "dataset/, incident_report.benchmark
+- `tests/test_review_workspace.py` (726e341ff658de6190b3c017347470b682bc5e5f): IMPORTED unchanged to `apps/incidentdesk/tests/test_review_workspace.py` (runtime test/support)
+- `tests/test_review_workspace_r2.py` (fde75a1019726bf99f79b77eadf08554557a55fb): IMPORTED unchanged to `apps/incidentdesk/tests/test_review_workspace_r2.py` (runtime test/support)
+- `tests/test_rule_engine_isolation.py` (f59f31e90782b2a801e13042a17321455e9e8baf): IMPORTED unchanged to `apps/incidentdesk/tests/test_rule_engine_isolation.py` (runtime test/support)
+- `tests/test_rules_catalogue_extensions.py` (117d786862b9eaf02370cd88aa3b49f7bd703579): IMPORTED unchanged to `apps/incidentdesk/tests/test_rules_catalogue_extensions.py` (runtime test/support)
+- `tests/test_rules_decree_law_14_2024.py` (5987a1f7cc4657a8acc910fd81d401729a508cdb): IMPORTED unchanged to `apps/incidentdesk/tests/test_rules_decree_law_14_2024.py` (runtime test/support)
+- `tests/test_run_gate.py` (c1f3b715964ee0b12ff57f26333a262c169b4e52): D8: "results", "results/, incident_report.benchmark
+- `tests/test_runlog_repair.py` (7713800be37b844f1c11bf961a638fe2b6bc5b3f): IMPORTED unchanged to `apps/incidentdesk/tests/test_runlog_repair.py` (runtime test/support)
+- `tests/test_sample_reports.py` (79a1410b25ef81681151ad8fdb87c8c3b0464b00): IMPORTED unchanged to `apps/incidentdesk/tests/test_sample_reports.py` (runtime test/support)
+- `tests/test_share_access.py` (d065d95dea91d7e91c103d3645137fa67ecd43cb): IMPORTED unchanged to `apps/incidentdesk/tests/test_share_access.py` (runtime test/support)
+- `tests/test_shipped_recording.py` (732674442d26740f7e4ad5150c32bc244f53fd35): IMPORTED unchanged to `apps/incidentdesk/tests/test_shipped_recording.py` (runtime test/support)
+- `tests/test_single_analysis_run.py` (d81f759a00d16ca6d64a330e1fdb69fd5b16a6d9): IMPORTED unchanged to `apps/incidentdesk/tests/test_single_analysis_run.py` (runtime test/support)
+- `tests/test_smoke_help.py` (633cd0671ada0feacfdc142d5f4eaff01f0c5099): IMPORTED unchanged to `apps/incidentdesk/tests/test_smoke_help.py` (runtime test/support)
+- `tests/test_storyline.py` (4cd87d09eb4bf8582b6cdeecc986e16e0e19c304): IMPORTED unchanged to `apps/incidentdesk/tests/test_storyline.py` (runtime test/support)
+- `tests/test_storyline_entry.py` (9f57544849c24bba408b5447631e10498fdeaf3c): IMPORTED unchanged to `apps/incidentdesk/tests/test_storyline_entry.py` (runtime test/support)
+- `tests/test_structured_facts.py` (c685375b5b92ec81afa83112558d0c7f71d8b1f3): IMPORTED unchanged to `apps/incidentdesk/tests/test_structured_facts.py` (runtime test/support)
+- `tests/test_truth_conflicts_review.py` (b4f5fea5b7bb766ff265baf1f879578fad75fb53): D8: "dataset/, incident_report.truth_draft
+- `tests/test_truth_draft.py` (e01159b7145685665eba8fb6ff482b8f02699250): D8: "dataset/, incident_report.truth_draft
+- `tests/test_ui_accessibility.py` (ecdc133ae06003c0a33b0e3575c88c6f2875135e): IMPORTED unchanged to `apps/incidentdesk/tests/test_ui_accessibility.py` (runtime test/support)
+- `tests/test_ui_shell.py` (0bc26444cb0757d56949f4544a1dab34809cea02): IMPORTED unchanged to `apps/incidentdesk/tests/test_ui_shell.py` (runtime test/support)
+- `tests/test_violations_fines.py` (6e5a09ff49e4d81ff3077b3a6a1a50abeadc4e98): IMPORTED unchanged to `apps/incidentdesk/tests/test_violations_fines.py` (runtime test/support)
+- `tests/test_web.py` (66bc61e25b6bbb33d34898e8ff3187c8df65b13a): IMPORTED unchanged to `apps/incidentdesk/tests/test_web.py` (runtime test/support)
+- `tests/test_web_admin.py` (556757b1503d91a1f319d689564220d01bc51f92): IMPORTED unchanged to `apps/incidentdesk/tests/test_web_admin.py` (runtime test/support)
+- `tests/test_web_feedback.py` (728fcafdff7c1ea6a2c5295f3b28a7bdbadbdb5d): IMPORTED unchanged to `apps/incidentdesk/tests/test_web_feedback.py` (runtime test/support)
+- `tests/video_fixtures.py` (d1935c0ff65dcb78f5f769e1cd466fb901b21614): IMPORTED unchanged to `apps/incidentdesk/tests/video_fixtures.py` (runtime test/support)
+
+Packaging resource: `README.md` (61649358c63b11a206ef86c6a40e98d511d43676) copied unchanged to `apps/incidentdesk/README.md`; required by pyproject readme metadata.
+
+Test resource exception: `docs/research/UAE_ROAD_STRUCTURE_AND_PRIORITY.md` copied unchanged to `apps/incidentdesk/docs/research/UAE_ROAD_STRUCTURE_AND_PRIORITY.md`; blob d27ef4f387ef62264f87dd9e7ad47f1421410d96; needed by unchanged runtime tests.
+
+Test resource exception: `docs/research/UAE_TRAFFIC_FINES_VERIFIED.md` copied unchanged to `apps/incidentdesk/docs/research/UAE_TRAFFIC_FINES_VERIFIED.md`; blob dcc81c696a5869f8d80cdecc29aff3889adc5b6e; needed by unchanged runtime tests.
