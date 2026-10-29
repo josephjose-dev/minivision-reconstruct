@@ -39,10 +39,30 @@ from guardlib import (
 
 # Directory prefixes (must end with "/") and exact files. Compared case-insensitively because Windows and
 # macOS file systems are, so "Dataset/Truth" there is the same folder.
-PROTECTED_DIRS = ("dataset/truth/", "dataset/archive/", "docs/adr/", "docs/reference/")
-PROTECTED_FILES = ("glossary.md",)
+PROTECTED_DIRS = (
+    "dataset/truth/",
+    "dataset/archive/",
+    "docs/adr/",
+    "docs/reference/",
+    "apps/incidentdesk/docs/adr/",
+    "apps/incidentdesk/docs/reference/",
+    "apps/incidentdesk/scripts/",
+    "src/minivision_reconstruct/",
+    "tests/",
+    "evaluation/",
+    "configs/",
+    "data/",
+)
+PROTECTED_FILES = (
+    "glossary.md",
+    "apps/incidentdesk/glossary.md",
+    "pyproject.toml",
+    "uv.lock",
+    "readme.md",
+    "implementation_plan.md",
+)
 # Not blocked, only reported: if these change, the guards themselves may have changed.
-WATCHED_PREFIXES = (".github/", "scripts/", ".pre-commit-config.yaml")
+WATCHED_PREFIXES = (".github/", "scripts/", ".pre-commit-config.yaml", "apps/incidentdesk/scripts/")
 MAX_LISTED = 30  # keep the log readable when a whole tree counts as new
 
 

@@ -3,12 +3,12 @@ Run every CI check, in the CI order, and stop at the first failure (docs/CI_GUAR
 
   scripts/check_all.ps1 [-Base REF] [-Head REF]
 
--Base defaults to fresh-start (the integration branch). Test settings come from an optional, gitignored
+-Base defaults to main (the integration branch). Test settings come from an optional, gitignored
 .env.test (see .env.test.example): PGPASSWORD, TEST_DATABASE_URL, INCIDENT_PG_BIN_DIR. Anything already set
 in your shell wins over the file.
 #>
 param(
-    [string]$Base = $(if ($env:BASE) { $env:BASE } else { 'fresh-start' }),
+    [string]$Base = $(if ($env:BASE) { $env:BASE } else { 'main' }),
     [string]$Head = 'HEAD'
 )
 
@@ -21,7 +21,11 @@ if (-not (Test-Path -LiteralPath $settingsFile -PathType Leaf)) {
     $worktrees = @(git -c core.quotePath=false worktree list --porcelain)
     if ($LASTEXITCODE -ne 0) { throw 'Cannot locate main checkout test settings.' }
     $mainCheckout = $worktrees[0].Substring(9)
-    $settingsFile = Join-Path $mainCheckout '.env.test'
+    if (Test-Path -LiteralPath (Join-Path $mainCheckout 'apps/incidentdesk')) {
+        $settingsFile = Join-Path $mainCheckout 'apps/incidentdesk/.env.test'
+    } else {
+        $settingsFile = Join-Path $mainCheckout '.env.test'
+    }
 }
 # Read only the three known keys from .env.test (the file is data, never executed).
 if (Test-Path -LiteralPath $settingsFile -PathType Leaf) {
@@ -36,7 +40,7 @@ if (Test-Path -LiteralPath $settingsFile -PathType Leaf) {
     }
 }
 # Sensible default: the local PostgreSQL on its standard port, no password in the URL (libpq reads PGPASSWORD).
-if (-not $env:TEST_DATABASE_URL) { $env:TEST_DATABASE_URL = 'postgresql://postgres@localhost:5432/postgres' }
+if (-not $env:TEST_DATABASE_URL) { $env:TEST_DATABASE_URL = 'postgresql://postgres@127.0.0.1:5433/incidentdesk_test_admin' }
 
 $script:passed = 0
 function Invoke-Check {
@@ -58,7 +62,13 @@ Invoke-Check 'ruff check' { uv run ruff check src tests scripts }
 Invoke-Check 'mypy' { uv run mypy }
 Invoke-Check 'pytest' { uv run pytest -q -rfE }
 foreach ($name in 'guard_conflict_markers', 'guard_utf8', 'guard_protected_paths', 'guard_test_integrity', 'guard_secrets', 'check_dependencies', 'guard_evidence_defaults', 'guard_migration_immutability') {
-    $command = { uv run python "scripts/$name.py" --base $Base --head $Head }.GetNewClosure()
+    $command = {
+        if ($name -eq 'check_dependencies') {
+            uv run python "scripts/$name.py" --frozen-import --base $Base --head $Head
+        } else {
+            uv run python "scripts/$name.py" --base $Base --head $Head
+        }
+    }.GetNewClosure()
     Invoke-Check $name $command
 }
 

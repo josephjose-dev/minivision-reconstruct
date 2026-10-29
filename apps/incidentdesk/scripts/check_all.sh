@@ -3,14 +3,14 @@
 #
 #   scripts/check_all.sh [--base REF] [--head REF]
 #
-# --base defaults to fresh-start (the integration branch); override it with --base or BASE=... in the
+# --base defaults to main (the integration branch); override it with --base or BASE=... in the
 # environment. Test settings come from an optional, gitignored .env.test (see .env.test.example):
 # PGPASSWORD, TEST_DATABASE_URL, INCIDENT_PG_BIN_DIR. Anything already set in your shell wins over the file.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-BASE="${BASE:-fresh-start}"
+BASE="${BASE:-main}"
 HEAD_REF="HEAD"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -25,7 +25,11 @@ done
 settings_file=.env.test
 if [ ! -f "$settings_file" ]; then
   main_checkout="$(git -c core.quotePath=false worktree list --porcelain | sed -n '1s/^worktree //p')"
-  settings_file="$main_checkout/.env.test"
+  if [ -d "$main_checkout/apps/incidentdesk" ]; then
+    settings_file="$main_checkout/apps/incidentdesk/.env.test"
+  else
+    settings_file="$main_checkout/.env.test"
+  fi
 fi
 # Read only the three known keys from .env.test (the file is data, never executed).
 if [ -f "$settings_file" ]; then
@@ -42,7 +46,7 @@ if [ -f "$settings_file" ]; then
   done < "$settings_file"
 fi
 # Sensible default: the local PostgreSQL on its standard port, no password in the URL (libpq reads PGPASSWORD).
-export TEST_DATABASE_URL="${TEST_DATABASE_URL:-postgresql://postgres@localhost:5432/postgres}"
+export TEST_DATABASE_URL="${TEST_DATABASE_URL:-postgresql://postgres@127.0.0.1:5433/incidentdesk_test_admin}"
 if [ -n "${INCIDENT_PG_BIN_DIR:-}" ]; then export INCIDENT_PG_BIN_DIR; fi
 
 passed=0
@@ -72,7 +76,7 @@ run "guard_utf8" guard guard_utf8 --base "$BASE" --head "$HEAD_REF"
 run "guard_protected_paths" guard guard_protected_paths --base "$BASE" --head "$HEAD_REF"
 run "guard_test_integrity" guard guard_test_integrity --base "$BASE" --head "$HEAD_REF"
 run "guard_secrets" guard guard_secrets --base "$BASE" --head "$HEAD_REF"
-run "check_dependencies" guard check_dependencies --base "$BASE" --head "$HEAD_REF"
+run "check_dependencies" guard check_dependencies --frozen-import --base "$BASE" --head "$HEAD_REF"
 run "guard_evidence_defaults" guard guard_evidence_defaults --base "$BASE" --head "$HEAD_REF"
 run "guard_migration_immutability" guard guard_migration_immutability --base "$BASE" --head "$HEAD_REF"
 

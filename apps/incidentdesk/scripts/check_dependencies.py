@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 import re
 import sys
@@ -311,13 +312,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dev-dir", action="append", default=None, help="tests/tooling dir (default: tests, scripts)")
     parser.add_argument("--skip-index", action="store_true", help="skip the PyPI checks (imports only)")
     parser.add_argument("--skip-imports", action="store_true", help="skip the declared-imports check (PyPI only)")
+    parser.add_argument(
+        "--frozen-import", action="store_true", help="offline MIG-01 gate: exact pinned donor lock and declared imports"
+    )
     args = parser.parse_args(argv)
     repo = Path(args.repo)
     problems: list[str] = []
     facts: list[str] = []
 
     try:
-        if not args.skip_index:
+        if args.frozen_import:
+            digest = hashlib.sha256((repo / "uv.lock").read_bytes()).hexdigest()
+            if digest != "1be599194e41d13529109696a38a179fbb0cea54cb41172df4856082026f6b9c":
+                raise GuardError(
+                    "Offline import gate requires the byte-identical 347a778 lock; dependency changes need separate review."
+                )
+            facts.append("Offline: exact donor 347a778 lock verified; no index requests made.")
+        if not args.skip_index and not args.frozen_import:
             lock_path = repo / "uv.lock"
             if not lock_path.is_file():
                 raise GuardError(f"No uv.lock in {repo}.")
@@ -350,7 +361,11 @@ def main(argv: list[str] | None = None) -> int:
     for fact in facts:
         print(fact)
     if not problems:
-        print("OK every locked package exists with matching hashes, and every import is declared.")
+        print(
+            "OK pinned import lock is unchanged and every import is declared."
+            if args.frozen_import
+            else "OK every locked package exists with matching hashes, and every import is declared."
+        )
         return EXIT_OK
     for problem in problems:
         print(f"PROBLEM {problem}")

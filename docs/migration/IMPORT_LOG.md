@@ -2018,3 +2018,19 @@ Packaging resource: `README.md` (61649358c63b11a206ef86c6a40e98d511d43676) copie
 Test resource exception: `docs/research/UAE_ROAD_STRUCTURE_AND_PRIORITY.md` copied unchanged to `apps/incidentdesk/docs/research/UAE_ROAD_STRUCTURE_AND_PRIORITY.md`; blob d27ef4f387ef62264f87dd9e7ad47f1421410d96; needed by unchanged runtime tests.
 
 Test resource exception: `docs/research/UAE_TRAFFIC_FINES_VERIFIED.md` copied unchanged to `apps/incidentdesk/docs/research/UAE_TRAFFIC_FINES_VERIFIED.md`; blob dcc81c696a5869f8d80cdecc29aff3889adc5b6e; needed by unchanged runtime tests.
+
+Classification correction: `tests/git_sandbox.py` IMPORTED unchanged; dataset paths describe synthetic git sandbox files, not donor dataset reads.
+
+Classification correction: `tests/test_check_all_settings.py` IMPORTED unchanged; dataset paths describe synthetic git sandbox files, not donor dataset reads.
+
+Classification correction: `tests/test_guard_dependencies.py` IMPORTED unchanged; dataset paths describe synthetic git sandbox files, not donor dataset reads.
+
+Classification correction: `tests/test_guard_owner_trailer.py` IMPORTED unchanged; dataset paths describe synthetic git sandbox files, not donor dataset reads.
+
+Classification correction: `tests/test_guard_protected_paths.py` IMPORTED unchanged; dataset paths describe synthetic git sandbox files, not donor dataset reads.
+
+Classification correction: `tests/test_guard_secrets.py` IMPORTED unchanged; dataset paths describe synthetic git sandbox files, not donor dataset reads.
+
+Classification correction: `tests/test_guard_test_integrity.py` IMPORTED unchanged; dataset paths describe synthetic git sandbox files, not donor dataset reads.
+
+Classification correction: `tests/test_guard_text.py` IMPORTED unchanged; dataset paths describe synthetic git sandbox files, not donor dataset reads.
