@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# Run every CI check, in the CI order, and stop at the first failure (docs/CI_GUARDRAILS.md).
+# Run every CI check, in the CI order, and report every check failure (docs/CI_GUARDRAILS.md).
 #
 #   scripts/check_all.sh [--base REF] [--head REF]
 #
-# --base defaults to main (the integration branch); override it with --base or BASE=... in the
+# --base defaults to incidentdesk-import-approved (owner-created annotated tag); override it with --base or BASE=... in the
 # environment. Test settings come from an optional, gitignored .env.test (see .env.test.example):
 # PGPASSWORD, TEST_DATABASE_URL, INCIDENT_PG_BIN_DIR. Anything already set in your shell wins over the file.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-BASE="${BASE:-main}"
+BASE="${BASE:-incidentdesk-import-approved}"
 HEAD_REF="HEAD"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --base) BASE="${2:?--base needs a ref}"; shift 2 ;;
+    --base | --Base) BASE="${2:?--base needs a ref}"; shift 2 ;;
     --head) HEAD_REF="${2:?--head needs a ref}"; shift 2 ;;
     -h | --help) sed -n '2,9p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -50,6 +50,8 @@ export TEST_DATABASE_URL="${TEST_DATABASE_URL:-postgresql://postgres@127.0.0.1:5
 if [ -n "${INCIDENT_PG_BIN_DIR:-}" ]; then export INCIDENT_PG_BIN_DIR; fi
 
 passed=0
+failed=0
+uv run python scripts/gate_base.py --base "$BASE" --head "$HEAD_REF"
 run() {
   local name="$1"
   shift
@@ -61,7 +63,7 @@ run() {
     echo
     echo "FAILED: $name"
     echo "check_all: $passed passed, then FAILED at: $name"
-    exit 1
+    failed=$((failed + 1))
   fi
 }
 
@@ -81,4 +83,8 @@ run "guard_evidence_defaults" guard guard_evidence_defaults --base "$BASE" --hea
 run "guard_migration_immutability" guard guard_migration_immutability --base "$BASE" --head "$HEAD_REF"
 
 echo
+if [ "$failed" -ne 0 ]; then
+  echo "check_all: $passed/12 passed, $failed failed (base: $BASE)"
+  exit 1
+fi
 echo "check_all: all $passed/12 checks passed (base: $BASE)"

@@ -1,14 +1,14 @@
 <#
-Run every CI check, in the CI order, and stop at the first failure (docs/CI_GUARDRAILS.md).
+Run every CI check, in the CI order, and report every check failure (docs/CI_GUARDRAILS.md).
 
   scripts/check_all.ps1 [-Base REF] [-Head REF]
 
--Base defaults to main (the integration branch). Test settings come from an optional, gitignored
+-Base defaults to incidentdesk-import-approved (owner-created annotated tag). Test settings come from an optional, gitignored
 .env.test (see .env.test.example): PGPASSWORD, TEST_DATABASE_URL, INCIDENT_PG_BIN_DIR. Anything already set
 in your shell wins over the file.
 #>
 param(
-    [string]$Base = $(if ($env:BASE) { $env:BASE } else { 'main' }),
+    [string]$Base = $(if ($env:BASE) { $env:BASE } else { 'incidentdesk-import-approved' }),
     [string]$Head = 'HEAD'
 )
 
@@ -43,6 +43,9 @@ if (Test-Path -LiteralPath $settingsFile -PathType Leaf) {
 if (-not $env:TEST_DATABASE_URL) { $env:TEST_DATABASE_URL = 'postgresql://postgres@127.0.0.1:5433/incidentdesk_test_admin' }
 
 $script:passed = 0
+$script:failed = 0
+uv run python scripts/gate_base.py --base $Base --head $Head
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 function Invoke-Check {
     param([string]$Name, [scriptblock]$Command)
     Write-Host ''
@@ -52,9 +55,10 @@ function Invoke-Check {
         Write-Host ''
         Write-Host "FAILED: $Name"
         Write-Host "check_all: $($script:passed) passed, then FAILED at: $Name"
-        exit 1
+        $script:failed++
+    } else {
+        $script:passed++
     }
-    $script:passed++
 }
 
 Invoke-Check 'ruff format' { uv run ruff format --check src tests scripts }
@@ -73,4 +77,8 @@ foreach ($name in 'guard_conflict_markers', 'guard_utf8', 'guard_protected_paths
 }
 
 Write-Host ''
+if ($script:failed -ne 0) {
+    Write-Host "check_all: $($script:passed)/12 passed, $($script:failed) failed (base: $Base)"
+    exit 1
+}
 Write-Host "check_all: all $($script:passed)/12 checks passed (base: $Base)"
