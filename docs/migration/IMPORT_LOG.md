@@ -2033,3 +2033,7 @@ Source: `josephjose-dev/RTA-ACCIDENT-AGENT`, commit `347a778576861ef972236781bc3
 ## Test arithmetic
 
 Pinned donor collection: 3221. Imported unchanged donor tests: 2757. Left out: 464. New migration tests: 13. Final expected collection: 2770. No donor tests edited, skipped or loosened.
+
+Additional test resource: `docs/research/RTA_RULES_CATALOGUE.md` (2f1495f021be8c3146c39aa56773e3ca5aaa76d4) imported unchanged to `apps/incidentdesk/docs/research/RTA_RULES_CATALOGUE.md`; required by unchanged runtime tests.
+
+Additional test resource: `.gitattributes` (51e47edea235d038d163aa2ecf7351d8bcfed4fa) imported unchanged to `apps/incidentdesk/.gitattributes`; required by unchanged runtime tests.
