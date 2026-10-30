@@ -7,7 +7,7 @@ from typing import Any
 
 import psycopg
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import PlainTextResponse, RedirectResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 from incident_report.domain import Report
@@ -38,6 +38,17 @@ def reconstruction_context(log: RunLog, report: Report) -> dict[str, Any]:
 
 
 def install_reconstruction(app: FastAPI, log: RunLog, error_page: Callable[[Request, int, str], Response]) -> None:
+    @app.get("/reconstruct/{tool}/")
+    def tool_fallback(tool: str) -> Response:
+        from incident_report.reconstruction.tools import unavailable
+
+        if not ReconstructionSettings.from_env().enabled:
+            return PlainTextResponse("Not found", status_code=404)
+        try:
+            return PlainTextResponse(unavailable(tool), status_code=503)
+        except ValueError:
+            return PlainTextResponse("Not found", status_code=404)
+
     @app.post("/reports/{run_id}/reconstruction/{action}")
     async def change(request: Request, run_id: uuid.UUID, action: str) -> Response:
         settings = ReconstructionSettings.from_env()

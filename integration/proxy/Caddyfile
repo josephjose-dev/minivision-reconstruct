@@ -1,0 +1,24 @@
+{
+	admin off
+	auto_https off
+}
+http://localhost:8080, http://127.0.0.1:8080 {
+	bind 127.0.0.1
+	@tools path /reconstruct/*
+	header @tools Cache-Control "no-store"
+	handle /reconstruct/tracks/* {
+		reverse_proxy 127.0.0.1:8511
+	}
+	handle /reconstruct/calibration/* {
+		reverse_proxy 127.0.0.1:8512
+	}
+	handle /reconstruct/replay/* {
+		reverse_proxy 127.0.0.1:8513
+	}
+	handle {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle_errors {
+		respond "Reconstruction tools are not running. Start the local tools and retry." 503
+	}
+}
