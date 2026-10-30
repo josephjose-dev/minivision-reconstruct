@@ -128,7 +128,8 @@ def test_malformed_derived_hash_is_rejected(tmp_path: Path) -> None:
 
 
 def test_envelope_can_list_omitted_derived_artifacts(tmp_path: Path) -> None:
-    import json, shutil
+    import json
+    import shutil
 
     root = tmp_path / "bundle"
     shutil.copytree(FIXTURES / "mig02-relative", root)
