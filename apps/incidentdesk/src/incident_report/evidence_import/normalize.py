@@ -12,6 +12,7 @@ from .reader import InvalidBundle, safe_path
 
 STATUSES = {"PROPOSED_BY_SYSTEM", "CONFIRMED_BY_REVIEWER", "REJECTED_BY_REVIEWER", "MODIFIED_BY_REVIEWER"}
 STATES = {
+    "manual",
     "observed",
     "lost",
     "recovered",
@@ -139,10 +140,35 @@ def _source(
     for document, key, expected in checks:
         if document and document.get(key) != expected:
             raise InvalidBundle(f"source binding mismatch: {key}")
+    calibration_digest = reconstruction.get("source_calibration_sha256")
+    calibration_paths = [path for path, digest in hashes.items() if digest == calibration_digest]
+    if not calibration_paths:
+        issues.append("missing_input: calibration unavailable")
+    else:
+        calibration_rows = load(calibration_paths[0])
+        if len(calibration_rows) != 1:
+            issues.append("missing_input: calibration unavailable")
+        else:
+            calibration = calibration_rows[0]
+            if calibration.get("validation_passed") is not True:
+                issues.append("missing_input: failed calibration")
+            if movement and (
+                calibration.get("mode") != movement.get("calibration_mode")
+                or calibration.get("world_unit") != movement.get("unit")
+            ):
+                raise InvalidBundle("calibration geometry units mismatch")
     rec_root = PurePosixPath(source.reconstruction_manifest).parent
     mov_root = PurePosixPath(source.movement_manifest).parent
     inc_root = PurePosixPath(source.incident_manifest).parent
     rev_root = PurePosixPath(source.reviewed_manifest).parent
+    for transformation in source.transformations:
+        if transformation != {
+            "operation": "producer reconstruction replay",
+            "mapping": str(rec_root / "replay_frames.jsonl"),
+        }:
+            raise InvalidBundle(
+                "unsupported source transformation; cropping/scaling/rotation require a reviewed mapping"
+            )
     timestamps = load(str(rec_root / "source_frames.jsonl"))
     time_by_frame: dict[int, dict[str, Any]] = {}
     frame_by_time: dict[float, int] = {}
@@ -164,6 +190,10 @@ def _source(
         issues.append("missing_input: no source timestamps")
 
     def citation(frame: Any, time: Any) -> dict[str, Any]:
+        if frame is not None and (type(frame) is not int or frame < 0):
+            raise InvalidBundle("citation frame must be a zero-based integer")
+        if type(time) not in (int, float) or time < 0:
+            raise InvalidBundle("citation time must be a nonnegative source timestamp")
         row = time_by_frame.get(frame)
         if row is None or row["source_time"] != time:
             issues.append("source frame/time unresolved")

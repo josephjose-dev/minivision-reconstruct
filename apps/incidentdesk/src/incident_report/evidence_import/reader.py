@@ -9,6 +9,7 @@ import math
 import os
 import re
 import stat
+import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -58,16 +59,21 @@ def parse_record(content: bytes) -> dict[str, Any]:
     pending = [value]
     while pending:
         item = pending.pop()
+        if isinstance(item, str):
+            if "\x00" in item:
+                raise InvalidBundle("JSON text is not representable in the local audit store")
+            item.encode("utf-8", errors="strict")
         if isinstance(item, float) and not math.isfinite(item):
             raise InvalidBundle("non-finite JSON number")
         if isinstance(item, dict):
             pending.extend(item.values())
+            pending.extend(item.keys())
         elif isinstance(item, list):
             pending.extend(item)
     return value
 
 
-def read_files(directory: Path) -> dict[str, bytes]:
+def read_files(directory: Path, files: dict[str, bytes]) -> None:
     # Refuse UNC/device roots before even stat(): an OS filesystem probe may send SMB traffic.
     if str(directory).replace("\\", "/").startswith("//"):
         raise InvalidBundle("network/device input is forbidden")
@@ -82,7 +88,6 @@ def read_files(directory: Path) -> dict[str, bytes]:
             raise InvalidBundle("linked bundle root or ancestor")
     if not directory.is_dir():
         raise InvalidBundle("input must be a local directory, not a link or archive")
-    files: dict[str, bytes] = {}
     total = 0
     visited = 0
     for path in directory.rglob("*"):
@@ -112,16 +117,16 @@ def read_files(directory: Path) -> dict[str, bytes]:
         if len(content) > MAX_FILE_BYTES or total > MAX_BUNDLE_BYTES:
             raise InvalidBundle("oversized bundle (project assumption)")
         files[name] = content
-    return files
 
 
 def inspect_bundle(directory: Path) -> ImportDecision:
     """Return a decision even on rejection; original artifact bytes remain untouched."""
     raw: dict[str, bytes] = {}
     hashes: dict[str, str] = {}
-    identity = hashlib.sha256(b"unreadable-local-bundle").hexdigest()
+    # An unreadable/oversized attempt has no complete content identity: never deduplicate it as another attempt.
+    identity = hashlib.sha256(uuid.uuid4().bytes).hexdigest()
     try:
-        raw = read_files(directory)
+        read_files(directory, raw)
         hashes = {name: hashlib.sha256(content).hexdigest() for name, content in sorted(raw.items())}
         identity = hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
         envelope = Envelope.model_validate(parse_record(raw["bundle.json"]))
@@ -165,6 +170,7 @@ def inspect_bundle(directory: Path) -> ImportDecision:
             raw_artifacts=raw,
         )
     except (InvalidBundle, ValidationError, ValueError, OSError, KeyError, TypeError, RecursionError) as exc:
+        hashes = {name: hashlib.sha256(content).hexdigest() for name, content in sorted(raw.items())}
         return ImportDecision(
             import_id=identity,
             provenance_state="rejected",

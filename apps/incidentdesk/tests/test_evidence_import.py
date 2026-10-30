@@ -224,3 +224,82 @@ def test_missing_review_revision_keeps_effective_values_untrusted(tmp_path: Path
     assert result.provenance_state == "incomplete_provenance", result.issues
     assert any(r.kind == "event_proposal" for r in result.records)
     assert not result.accepted_records
+
+
+def test_latest_empty_review_snapshot_does_not_inherit_old_decisions(tmp_path: Path) -> None:
+    from evidence_import_fixtures import synthetic_bundle
+
+    def clear_latest(documents: dict[str, list[dict[str, Any]]], envelope: dict[str, Any]) -> None:
+        for name, rows in documents.items():
+            if "reviews/revision-003/revision.json" in name:
+                rows[0]["document"]["decisions"] = []
+            if "reviewed/revision-003/reviewed_events.jsonl" in name:
+                for row in rows:
+                    row["status"] = "PROPOSED_BY_SYSTEM"
+                    row["decision"] = None
+            if "reviewed/revision-003/reviewed_assessments.jsonl" in name:
+                for row in rows:
+                    row["event_status"] = "PROPOSED_BY_SYSTEM"
+
+    result = inspect_bundle(synthetic_bundle(tmp_path, transform=clear_latest))
+    assert result.provenance_state == "verified", result.issues
+    assert not any(r.kind == "review_overlay" for r in result.records)
+
+
+def test_missing_signal_frames_quarantine_the_bundle(tmp_path: Path) -> None:
+    from evidence_import_fixtures import synthetic_bundle
+
+    def invalid_signal(documents: dict[str, list[dict[str, Any]]], envelope: dict[str, Any]) -> None:
+        for name, rows in documents.items():
+            if name.endswith("/events.jsonl") and "/incident/" in name:
+                for row in rows:
+                    row["signals"][0]["source_frames"] = [999999]
+            if "reviewed_events.jsonl" in name:
+                for row in rows:
+                    row["proposal"]["signals"][0]["source_frames"] = [999999]
+
+    result = inspect_bundle(synthetic_bundle(tmp_path, transform=invalid_signal))
+    assert result.provenance_state == "incomplete_provenance", result.issues
+    assert "supporting evidence frame unresolved" in result.issues
+    assert result.records and not result.accepted_records
+
+
+def test_root_junction_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = bundle(tmp_path)
+    original = Path.is_junction
+    monkeypatch.setattr(Path, "is_junction", lambda p: p == root or original(p))
+    assert inspect_bundle(root).provenance_state == "rejected"
+
+
+def test_real_relative_units_and_gap_states_round_trip() -> None:
+    root = FIXTURES / "mig02-relative"
+    before = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob("*") if p.is_file()}
+    result = inspect_bundle(root)
+    assert result.provenance_state == "incomplete_provenance", result.issues
+    states = {r.original.get("state") for r in result.records if r.kind == "track_reference"}
+    assert {"lost", "interpolated"} <= states
+    assert {r.original["unit"] for r in result.records if r.kind == "geometry"} == {"relative_units"}
+    assert all(hashlib.sha256(p.read_bytes()).hexdigest() == h for p, h in before.items())
+
+
+def test_failed_calibration_is_missing_input(tmp_path: Path) -> None:
+    from evidence_import_fixtures import synthetic_bundle
+
+    def failed(documents: dict[str, list[dict[str, Any]]], envelope: dict[str, Any]) -> None:
+        for name, rows in documents.items():
+            if name.endswith("/calibration.json"):
+                rows[0]["validation_passed"] = False
+
+    result = inspect_bundle(synthetic_bundle(tmp_path, transform=failed))
+    assert result.provenance_state == "incomplete_provenance", result.issues
+    assert "missing_input: failed calibration" in result.issues
+    assert not result.accepted_records
+
+
+def test_unknown_transform_is_rejected(tmp_path: Path) -> None:
+    from evidence_import_fixtures import synthetic_bundle
+
+    def transform(documents: dict[str, list[dict[str, Any]]], envelope: dict[str, Any]) -> None:
+        envelope["sources"][0]["transformations"] = [{"operation": "crop", "x": 200}]
+
+    assert inspect_bundle(synthetic_bundle(tmp_path, transform=transform)).provenance_state == "rejected"

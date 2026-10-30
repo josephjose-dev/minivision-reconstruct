@@ -3,13 +3,20 @@
 import hashlib
 import json
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 FIXTURES = Path(__file__).resolve().parents[3] / "contracts/evidence-v1/fixtures"
 
 
-def synthetic_bundle(root: Path, *, rejected: bool = False, modified: bool = False) -> Path:
+def synthetic_bundle(
+    root: Path,
+    *,
+    rejected: bool = False,
+    modified: bool = False,
+    transform: Callable[[dict[str, list[dict[str, Any]]], dict[str, Any]], None] | None = None,
+) -> Path:
     real = FIXTURES / "mig02-001-07-occluded-impact"
     shutil.copytree(real, root, dirs_exist_ok=True)
     envelope = json.loads((root / "bundle.json").read_bytes())
@@ -73,6 +80,8 @@ def synthetic_bundle(root: Path, *, rejected: bool = False, modified: bool = Fal
             if "reviews/revision-003/revision.json" in name:
                 event_path = next(n for n in documents if "reviewed/revision-003/reviewed_events.jsonl" in n)
                 rows[0]["document"]["decisions"][0] = documents[event_path][0]["decision"]
+    if transform is not None:
+        transform(documents, envelope)
     # Recompute every reference to changed content, from leaves up the acyclic manifest/revision graph.
     hashes = dict(old_hashes)
     for _ in range(20):
