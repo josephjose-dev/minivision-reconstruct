@@ -179,7 +179,7 @@ def inspect_bundle(directory: Path) -> ImportDecision:
             provenance_state="incomplete_provenance" if provenance_issues else "verified",
             issues=tuple(issues),
             records=normalized,
-            accepted_records=tuple(record.record_id for record in normalized if not record.needs_review)
+            structurally_accepted_records=tuple(record.record_id for record in normalized if not record.needs_review)
             if not provenance_issues
             else (),
             quarantined_records=tuple(

@@ -91,7 +91,7 @@ class ImportDecision(FrozenRecord):
     provenance_state: Literal["verified", "incomplete_provenance", "rejected"]
     issues: tuple[str, ...]
     records: tuple[NormalizedRecord, ...] = ()
-    accepted_records: tuple[str, ...] = ()
+    structurally_accepted_records: tuple[str, ...] = ()
     quarantined_records: tuple[str, ...] = ()
     source_hashes: dict[str, str] = Field(default_factory=dict)
     envelope: Envelope | None = None

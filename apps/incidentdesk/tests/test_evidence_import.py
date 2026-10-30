@@ -131,7 +131,7 @@ def test_complete_bundle_is_verified_but_never_officer_approved(tmp_path: Path) 
 
     result = inspect_bundle(synthetic_bundle(tmp_path))
     assert result.provenance_state == "verified", result.issues
-    assert result.accepted_records
+    assert result.structurally_accepted_records
     assert all(not r.officer_approved and not r.affirmative and r.rule_source is None for r in result.records)
 
 
@@ -209,7 +209,7 @@ def test_missing_upstream_keeps_proposals_quarantined(tmp_path: Path) -> None:
     result = inspect_bundle(root)
     assert result.provenance_state == "incomplete_provenance", result.issues
     assert any(r.kind == "event_proposal" for r in result.records)
-    assert result.quarantined_records and not result.accepted_records
+    assert result.quarantined_records and not result.structurally_accepted_records
 
 
 def test_missing_review_revision_keeps_effective_values_untrusted(tmp_path: Path) -> None:
@@ -221,7 +221,7 @@ def test_missing_review_revision_keeps_effective_values_untrusted(tmp_path: Path
     result = inspect_bundle(root)
     assert result.provenance_state == "incomplete_provenance", result.issues
     assert any(r.kind == "event_proposal" for r in result.records)
-    assert not result.accepted_records
+    assert not result.structurally_accepted_records
 
 
 def test_latest_empty_review_snapshot_does_not_inherit_old_decisions(tmp_path: Path) -> None:
@@ -259,7 +259,7 @@ def test_missing_signal_frames_quarantine_the_bundle(tmp_path: Path) -> None:
     result = inspect_bundle(synthetic_bundle(tmp_path, transform=invalid_signal))
     assert result.provenance_state == "incomplete_provenance", result.issues
     assert "supporting evidence frame unresolved" in result.issues
-    assert result.records and not result.accepted_records
+    assert result.records and not result.structurally_accepted_records
 
 
 def test_root_junction_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -291,7 +291,7 @@ def test_failed_calibration_is_missing_input(tmp_path: Path) -> None:
     result = inspect_bundle(synthetic_bundle(tmp_path, transform=failed))
     assert result.provenance_state == "incomplete_provenance", result.issues
     assert "missing_input: failed calibration" in result.issues
-    assert not result.accepted_records
+    assert not result.structurally_accepted_records
 
 
 def test_unknown_transform_is_rejected(tmp_path: Path) -> None:
@@ -313,7 +313,7 @@ def test_missing_manifest_is_incomplete_with_available_records(tmp_path: Path, f
     result = inspect_bundle(root)
     assert result.provenance_state == "incomplete_provenance", result.issues
     assert any(r.kind == "event_proposal" for r in result.records)
-    assert result.quarantined_records and not result.accepted_records
+    assert result.quarantined_records and not result.structurally_accepted_records
 
 
 def test_review_chain_cannot_skip_revisions(tmp_path: Path) -> None:
