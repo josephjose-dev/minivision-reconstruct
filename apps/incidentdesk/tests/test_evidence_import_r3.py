@@ -53,6 +53,7 @@ def test_missing_inputs_are_explicit_even_with_verified_provenance() -> None:
 
 def test_failed_calibration_has_a_typed_missing_input(tmp_path: Path) -> None:
     from typing import Any
+
     from evidence_import_fixtures import synthetic_bundle
 
     def fail(documents: dict[str, list[dict[str, Any]]], envelope: dict[str, Any]) -> None:
@@ -62,3 +63,18 @@ def test_failed_calibration_has_a_typed_missing_input(tmp_path: Path) -> None:
 
     result = inspect_bundle(synthetic_bundle(tmp_path, transform=fail))
     assert "calibration_failed" in result.missing_inputs
+
+
+def test_off_table_review_issue_names_target_and_time(tmp_path: Path) -> None:
+    from evidence_import_fixtures import synthetic_bundle
+    from incident_report.evidence_import.payloads import ReviewFields
+
+    result = inspect_bundle(synthetic_bundle(tmp_path, modified=True))
+    overlay = next(r for r in result.records if isinstance(r.data, ReviewFields))
+    assert isinstance(overlay.data, ReviewFields)
+    assert overlay.needs_review and overlay.source_time is None and overlay.source_frame is None
+    assert any(
+        overlay.data.target_id in issue and repr(overlay.data.modified_peak_time) in issue for issue in result.issues
+    )
+    assert result.provenance_state == "verified"
+    assert overlay.record_id in result.quarantined_records

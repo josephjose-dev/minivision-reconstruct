@@ -57,7 +57,7 @@ on Windows; UNC/device paths, symlinks, junctions, linked ancestors and special 
 are refused. Supply a stable directory; this is not an OS sandbox against another
 process concurrently replacing filesystem ancestors.
 
-Versioning: contract `1.0`, importer `1.1.0`. Unknown contract or producer schema
+Versioning: contract `1.0`, importer `1.2.0`. Unknown contract or producer schema
 versions reject rather than guessing compatibility. Regenerate schemas from the
 Pydantic models when the reviewed contract changes. No existing app behavior or
 fault engine is connected to this module.
@@ -108,7 +108,7 @@ it does not require changes to the producer or rewrite checked-in producer artif
 Historical importer 1.0.0 decisions load as `LegacyImportSnapshot`, exposing their
 unchanged original_decision, raw_envelope and raw_artifacts. They are deliberately
 not upgraded to typed evidence: absent typed fields stay absent. Current import IDs
-include version 1.1.0, so re-importing bytes yields a new decision while the historical
+include version 1.2.0, so re-importing bytes yields a new decision while the historical
 snapshot remains queryable and immutable. Consumers must distinguish the two types.
 
 Round 3: typed sequence peaks resolve through their movement event's peak frame,
@@ -134,3 +134,8 @@ It is populated from the importer's explicit validation issues, including when
 loading prior typed decisions that lacked this field. An empty candidate list can
 have verified file provenance and still carries no_incident_candidates. No consumer
 may interpret verified provenance or an empty event list as No Incident.
+
+An off-table producer review correction also emits a needs_review issue naming the
+producer target event and requested time. This is a review diagnostic, not missing
+upstream evidence: provenance may remain verified, but the overlay stays quarantined
+with null citation fields. All fault/approval flags remain false.

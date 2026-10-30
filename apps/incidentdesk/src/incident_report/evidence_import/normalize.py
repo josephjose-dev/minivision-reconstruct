@@ -467,6 +467,10 @@ def _source(
         if decision:
             matches = [f for t, f in frame_by_time.items() if abs(t - effective_time) <= TIMESTAMP_TOLERANCE_SECONDS]
             frame = matches[0] if len(matches) == 1 else None
+            if frame is None and decision.get("modified_peak_time") is not None:
+                issues.append(
+                    f"needs_review: event {event_id} corrected time {effective_time!r} unresolved in source timestamp table"
+                )
             add(
                 "review_overlay",
                 path,
