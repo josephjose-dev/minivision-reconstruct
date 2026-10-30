@@ -1,19 +1,5 @@
-"""Local-only, content-addressed evidence proposals; no producer runtime imports."""
+"""Import local evidence without producer runtime, AI or network clients."""
 
-from pathlib import Path
-from typing import Literal
+from .reader import inspect_bundle
 
-from pydantic import BaseModel, ConfigDict, JsonValue
-
-
-class ImportDecision(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-    import_id: str
-    provenance_state: Literal["verified", "incomplete_provenance", "rejected"]
-    issues: tuple[str, ...]
-    records: tuple[dict[str, JsonValue], ...] = ()
-
-
-def inspect_bundle(directory: Path) -> ImportDecision:
-    """Inspect without executing input or making external calls."""
-    return ImportDecision(import_id="", provenance_state="rejected", issues=("unsupported contract",))
+__all__ = ["inspect_bundle"]

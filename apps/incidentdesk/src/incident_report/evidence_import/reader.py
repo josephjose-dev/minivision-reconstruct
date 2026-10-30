@@ -1,0 +1,174 @@
+"""Bounded local directory reader: no execution or external calls."""
+
+from __future__ import annotations
+
+import hashlib
+import io
+import json
+import math
+import os
+import re
+import stat
+from pathlib import Path, PurePosixPath
+from typing import Any
+
+from pydantic import ValidationError
+
+from .models import MAX_BUNDLE_BYTES, MAX_FILE_BYTES, MAX_FILES, MAX_RECORD_BYTES, MAX_RECORDS, Envelope, ImportDecision
+
+
+class InvalidBundle(ValueError):
+    """Untrusted bundle cannot be interpreted."""
+
+
+def safe_path(value: str) -> PurePosixPath:
+    path = PurePosixPath(value)
+    if (
+        not value
+        or "\\" in value
+        or ":" in value
+        or path.is_absolute()
+        or any(part in {"", ".", ".."} for part in value.split("/"))
+    ):
+        raise InvalidBundle("unsafe relative artifact path")
+    return path
+
+
+def _pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in items:
+        if key in result:
+            raise InvalidBundle("duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _constant(value: str) -> None:
+    raise InvalidBundle("non-finite JSON number")
+
+
+def parse_record(content: bytes) -> dict[str, Any]:
+    if len(content) > MAX_RECORD_BYTES:
+        raise InvalidBundle("oversized record (project assumption)")
+    value = json.loads(content, object_pairs_hook=_pairs, parse_constant=_constant)
+    if not isinstance(value, dict):
+        raise InvalidBundle("JSON record must be an object")
+    if "schema_version" in value and value["schema_version"] != "1.0":
+        raise InvalidBundle("unknown producer schema version")
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, float) and not math.isfinite(item):
+            raise InvalidBundle("non-finite JSON number")
+        if isinstance(item, dict):
+            pending.extend(item.values())
+        elif isinstance(item, list):
+            pending.extend(item)
+    return value
+
+
+def read_files(directory: Path) -> dict[str, bytes]:
+    # Refuse UNC/device roots before even stat(): an OS filesystem probe may send SMB traffic.
+    if str(directory).replace("\\", "/").startswith("//"):
+        raise InvalidBundle("network/device input is forbidden")
+    directory = directory.absolute()
+    if os.name == "nt":
+        import ctypes
+
+        if ctypes.windll.kernel32.GetDriveTypeW(directory.anchor) != 3:
+            raise InvalidBundle("input must be on a fixed local drive")
+    for parent in (directory, *directory.parents):
+        if parent.is_symlink() or parent.is_junction():
+            raise InvalidBundle("linked bundle root or ancestor")
+    if not directory.is_dir():
+        raise InvalidBundle("input must be a local directory, not a link or archive")
+    files: dict[str, bytes] = {}
+    total = 0
+    visited = 0
+    for path in directory.rglob("*"):
+        visited += 1
+        if visited > MAX_FILES * 2:
+            raise InvalidBundle("oversized directory count (project assumption)")
+        if path.is_symlink() or path.is_junction():
+            raise InvalidBundle("symlink or junction in bundle")
+        if path.is_dir():
+            continue
+        if not stat.S_ISREG(path.stat().st_mode):
+            raise InvalidBundle("non-regular artifact")
+        name = path.relative_to(directory).as_posix()
+        safe_path(name)
+        if len(files) >= MAX_FILES or path.stat().st_size > MAX_FILE_BYTES:
+            raise InvalidBundle("oversized file count or file (project assumption)")
+        before = path.stat(follow_symlinks=False)
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(descriptor, "rb") as stream:
+            opened = os.fstat(stream.fileno())
+            if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
+                raise InvalidBundle("artifact changed while opening")
+            content = stream.read(MAX_FILE_BYTES + 1)
+        if path.is_symlink() or path.is_junction() or not path.resolve().is_relative_to(directory.resolve()):
+            raise InvalidBundle("artifact changed containment")
+        total += len(content)
+        if len(content) > MAX_FILE_BYTES or total > MAX_BUNDLE_BYTES:
+            raise InvalidBundle("oversized bundle (project assumption)")
+        files[name] = content
+    return files
+
+
+def inspect_bundle(directory: Path) -> ImportDecision:
+    """Return a decision even on rejection; original artifact bytes remain untouched."""
+    raw: dict[str, bytes] = {}
+    hashes: dict[str, str] = {}
+    identity = hashlib.sha256(b"unreadable-local-bundle").hexdigest()
+    try:
+        raw = read_files(directory)
+        hashes = {name: hashlib.sha256(content).hexdigest() for name, content in sorted(raw.items())}
+        identity = hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
+        envelope = Envelope.model_validate(parse_record(raw["bundle.json"]))
+        issues: list[str] = []
+        for name, digest in envelope.artifacts.items():
+            safe_path(name)
+            if not re.fullmatch(r"[a-f0-9]{64}", digest):
+                raise InvalidBundle("invalid artifact digest")
+            if name not in raw:
+                issues.append(f"missing artifact: {name}")
+            elif hashes[name] != digest:
+                raise InvalidBundle(f"hash mismatch: {name}")
+        if set(raw) - {"bundle.json"} - envelope.artifacts.keys():
+            raise InvalidBundle("unlisted artifact")
+        parsed: dict[str, list[dict[str, Any]]] = {}
+        count = 0
+        for name, content in raw.items():
+            if name.endswith((".json", ".jsonl")) and name != "bundle.json":
+                lines = io.BytesIO(content) if name.endswith(".jsonl") else [content]
+                records = []
+                for line in lines:
+                    if not line.strip():
+                        continue
+                    count += 1
+                    if count > MAX_RECORDS:
+                        raise InvalidBundle("oversized record count (project assumption)")
+                    records.append(parse_record(line))
+                parsed[name] = records
+        from .normalize import normalize
+
+        normalized = normalize(envelope, parsed, hashes, issues)
+        return ImportDecision(
+            import_id=identity,
+            provenance_state="incomplete_provenance" if issues else "verified",
+            issues=tuple(issues),
+            records=normalized,
+            accepted_records=tuple(record.record_id for record in normalized) if not issues else (),
+            quarantined_records=tuple(record.record_id for record in normalized) if issues else (),
+            source_hashes=hashes,
+            envelope=envelope,
+            raw_artifacts=raw,
+        )
+    except (InvalidBundle, ValidationError, ValueError, OSError, KeyError, TypeError, RecursionError) as exc:
+        return ImportDecision(
+            import_id=identity,
+            provenance_state="rejected",
+            issues=(f"{type(exc).__name__}: {exc}",),
+            source_hashes=hashes,
+            raw_artifacts=raw,
+        )

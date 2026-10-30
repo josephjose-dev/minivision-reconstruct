@@ -1,0 +1,150 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "source_binding",
+        "track_reference",
+        "event_proposal",
+        "geometry",
+        "review_overlay",
+        "assessment",
+        "sequence"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "view_id": {
+      "title": "View Id",
+      "type": "string"
+    },
+    "artifact_path": {
+      "title": "Artifact Path",
+      "type": "string"
+    },
+    "original": {
+      "additionalProperties": true,
+      "title": "Original",
+      "type": "object"
+    },
+    "effective": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Effective"
+    },
+    "source_frame": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Frame"
+    },
+    "source_time": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Time"
+    },
+    "timestamp_provenance": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Timestamp Provenance"
+    },
+    "track_refs": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Track Refs",
+      "type": "array"
+    },
+    "producer_status": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Producer Status"
+    },
+    "parent_status": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Status"
+    },
+    "needs_review": {
+      "default": false,
+      "title": "Needs Review",
+      "type": "boolean"
+    },
+    "affirmative": {
+      "const": false,
+      "default": false,
+      "title": "Affirmative",
+      "type": "boolean"
+    },
+    "officer_approved": {
+      "const": false,
+      "default": false,
+      "title": "Officer Approved",
+      "type": "boolean"
+    },
+    "rule_source": {
+      "default": null,
+      "title": "Rule Source",
+      "type": "null"
+    }
+  },
+  "required": [
+    "record_id",
+    "kind",
+    "view_id",
+    "artifact_path",
+    "original"
+  ],
+  "title": "NormalizedRecord",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
