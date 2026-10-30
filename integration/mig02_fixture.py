@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = ROOT.parent / "cases"
@@ -28,7 +29,7 @@ for case in sorted(CASES.glob("mig02-*")):
     revision = sorted(p.name for p in (incident / "reviews").glob("revision-*"))[-1] if (incident / "reviews").exists() else "initial"
     envelope = {
         "contract_version": "1.0", "producer": "minivision-reconstruct",
-        "producer_revision": "c66000af37099e39920ff0e8ac621ce5be09090d",
+        "producer_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "case_id": case.name, "created_at": "2026-10-30T00:00:00Z", "processing_policy": "local_only",
         "config_identifiers": [json.loads((target / movement_path).read_bytes())["config_id"], json.loads((target / incident_path).read_bytes())["config_id"]],
         "model_identifiers": ["scripted-tracks-no-detector"],
