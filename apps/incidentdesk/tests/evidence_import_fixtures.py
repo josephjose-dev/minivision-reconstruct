@@ -32,20 +32,10 @@ def synthetic_bundle(
                 if name.endswith(".jsonl")
                 else [json.loads(content)]
             )
-    frame_path = next(name for name in documents if name.endswith("/source_frames.jsonl"))
-    times = {row["source_frame"]: row["source_time"] for row in documents[frame_path]}
     # A handmade complete graph: remove absent presentation references and overlay review at an exact source time.
     # Producer bytes in the real fixture are NEVER changed; these are explicit test-only variations.
     for name, rows in documents.items():
         for row in rows:
-            if "source_frame" in row:
-                for key in ("source_time", "timestamp_seconds"):
-                    if key in row:
-                        row[key] = times[row["source_frame"]]
-            if "peak_frame" in row:
-                row["peak_time"] = times[row["peak_frame"]]
-            if "proposal" in row and "peak_frame" in row["proposal"]:
-                row["proposal"]["peak_time"] = times[row["proposal"]["peak_frame"]]
             if "artifacts" in row:
                 row["artifacts"] = [
                     a

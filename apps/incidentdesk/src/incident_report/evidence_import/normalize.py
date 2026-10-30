@@ -8,7 +8,7 @@ import re
 from pathlib import PurePosixPath
 from typing import Any
 
-from .models import Envelope, NormalizedRecord, SourceBinding
+from .models import TIMESTAMP_TOLERANCE_SECONDS, Envelope, NormalizedRecord, SourceBinding
 from .reader import InvalidBundle, safe_path
 
 STATUSES = {"PROPOSED_BY_SYSTEM", "CONFIRMED_BY_REVIEWER", "REJECTED_BY_REVIEWER", "MODIFIED_BY_REVIEWER"}
@@ -213,16 +213,17 @@ def _source(
     ):
         issues.append("missing_input: incomplete zero-based source timestamp table")
 
-    def citation(frame: Any, time: Any) -> dict[str, Any]:
+    def citation(frame: Any, time: Any, *, overlay: bool = False) -> dict[str, Any]:
         if frame is not None and (type(frame) is not int or frame < 0):
             raise InvalidBundle("citation frame must be a zero-based integer")
         if type(time) not in (int, float) or time < 0:
             raise InvalidBundle("citation time must be a nonnegative source timestamp")
         row = time_by_frame.get(frame) if frame is not None else None
-        if row is None or row["source_time"] != time:
-            issues.append("source frame/time unresolved")
+        if row is None or abs(row["source_time"] - time) > TIMESTAMP_TOLERANCE_SECONDS:
+            if not overlay:
+                issues.append("source frame/time unresolved")
             return {"needs_review": True}
-        return {"source_frame": frame, "source_time": time, "timestamp_provenance": row["timestamp_source"]}
+        return {"source_frame": frame, "source_time": row["source_time"], "timestamp_provenance": row["timestamp_source"]}
 
     add("source_binding", source.reconstruction_manifest, source.model_dump(mode="json"), "binding")
     for row in timestamps:
@@ -391,7 +392,8 @@ def _source(
         if row["peak_time"] != effective_time or row["location"] != effective_location:
             raise InvalidBundle("effective event value inconsistent with review")
         if decision:
-            frame = frame_by_time.get(effective_time)
+            matches = [f for t, f in frame_by_time.items() if abs(t - effective_time) <= TIMESTAMP_TOLERANCE_SECONDS]
+            frame = matches[0] if len(matches) == 1 else None
             add(
                 "review_overlay",
                 path,
@@ -404,7 +406,7 @@ def _source(
                 },
                 track_refs=refs,
                 producer_status=row["status"],
-                **citation(frame, effective_time),
+                **citation(frame, effective_time, overlay=True),
             )
     if seen_events != originals.keys():
         issues.append("missing reviewed events")

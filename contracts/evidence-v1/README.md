@@ -70,3 +70,12 @@ inventing a frame/rate conversion. JSON text that PostgreSQL JSONB cannot repres
 refused before a complete content identity is available, the rejection has a unique
 attempt ID; it cannot be deduplicated as an unrelated unreadable attempt. Such
 unreadable attempts have no claimed byte-identity guarantee.
+
+## Round 2 timestamp compatibility
+Source citations resolve by zero-based frame and use the timestamp table's value
+and provenance. `TIMESTAMP_TOLERANCE_SECONDS = 1e-9` seconds is a **project assumption,
+to be validated**, permitting serialization noise, not alignment or a frame-sized
+shift. Producer values remain unchanged in `original`. Time-to-frame corrections
+use the same tolerance and must match exactly one table entry. Larger/ambiguous
+corrections retain null citations and needs_review; they are quarantined separately
+from structurally verified provenance.
