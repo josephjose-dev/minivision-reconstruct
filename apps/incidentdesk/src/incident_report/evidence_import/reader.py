@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from .models import MAX_BUNDLE_BYTES, MAX_FILE_BYTES, MAX_FILES, MAX_RECORD_BYTES, MAX_RECORDS, Envelope, ImportDecision
+from .models import MAX_BUNDLE_BYTES, MAX_FILE_BYTES, MAX_FILES, MAX_RECORD_BYTES, MAX_RECORDS, DerivedOmission, Envelope, ImportDecision
 
 
 class InvalidBundle(ValueError):
@@ -159,14 +159,17 @@ def inspect_bundle(directory: Path) -> ImportDecision:
                 parsed[name] = records
         from .normalize import normalize
 
-        normalized = normalize(envelope, parsed, hashes, issues)
+        omissions: list[DerivedOmission] = []
+        normalized = normalize(envelope, parsed, hashes, issues, omissions)
+        provenance_issues = [i for i in issues if i != "missing_input: no incident candidates"]
         return ImportDecision(
             import_id=identity,
-            provenance_state="incomplete_provenance" if issues else "verified",
+            not_supplied_derived=tuple(omissions),
+            provenance_state="incomplete_provenance" if provenance_issues else "verified",
             issues=tuple(issues),
             records=normalized,
-            accepted_records=tuple(record.record_id for record in normalized) if not issues else (),
-            quarantined_records=tuple(record.record_id for record in normalized) if issues else (),
+            accepted_records=tuple(record.record_id for record in normalized if not record.needs_review) if not provenance_issues else (),
+            quarantined_records=tuple(record.record_id for record in normalized if provenance_issues or record.needs_review),
             source_hashes=hashes,
             envelope=envelope,
             raw_artifacts=raw,

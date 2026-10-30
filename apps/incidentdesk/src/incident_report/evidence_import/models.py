@@ -71,7 +71,15 @@ class NormalizedRecord(FrozenRecord):
     rule_source: None = None
 
 
+class DerivedOmission(FrozenRecord):
+    state: Literal["not_supplied_derived"] = "not_supplied_derived"
+    artifact_path: str
+    sha256: str
+    manifest_sha256: str
+
+
 class ImportDecision(FrozenRecord):
+    not_supplied_derived: tuple[DerivedOmission, ...] = ()
     import_id: str
     importer_version: str = IMPORTER_VERSION
     provenance_state: Literal["verified", "incomplete_provenance", "rejected"]

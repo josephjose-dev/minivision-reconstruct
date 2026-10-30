@@ -8,7 +8,7 @@ import re
 from pathlib import PurePosixPath
 from typing import Any
 
-from .models import TIMESTAMP_TOLERANCE_SECONDS, Envelope, NormalizedRecord, SourceBinding
+from .models import TIMESTAMP_TOLERANCE_SECONDS, DerivedOmission, Envelope, NormalizedRecord, SourceBinding
 from .reader import InvalidBundle, safe_path
 
 STATUSES = {"PROPOSED_BY_SYSTEM", "CONFIRMED_BY_REVIEWER", "REJECTED_BY_REVIEWER", "MODIFIED_BY_REVIEWER"}
@@ -32,7 +32,7 @@ def identity(*parts: object) -> str:
 
 
 def normalize(
-    envelope: Envelope, parsed: dict[str, list[dict[str, Any]]], hashes: dict[str, str], issues: list[str]
+    envelope: Envelope, parsed: dict[str, list[dict[str, Any]]], hashes: dict[str, str], issues: list[str], omissions: list[DerivedOmission]
 ) -> tuple[NormalizedRecord, ...]:
     """Hash closure includes every supplied manifest, even older reviewed revisions."""
     if not envelope.sources:
@@ -44,7 +44,7 @@ def normalize(
         by_hash[source.original_video_sha256] = "original-video-binding-only"
     for path, documents in parsed.items():
         for document in documents:
-            _closure(path, document, hashes, by_hash, issues)
+            _closure(path, document, hashes, by_hash, issues, omissions)
     records: list[NormalizedRecord] = []
     for source in envelope.sources:
         records.extend(_source(envelope, source, parsed, hashes, issues))
@@ -55,13 +55,17 @@ def normalize(
 
 
 def _closure(
-    path: str, document: dict[str, Any], hashes: dict[str, str], by_hash: dict[str, str], issues: list[str]
+    path: str, document: dict[str, Any], hashes: dict[str, str], by_hash: dict[str, str], issues: list[str], omissions: list[DerivedOmission]
 ) -> None:
     for artifact in document.get("artifacts", []):
         child = safe_path(artifact["filename"])
         target = (PurePosixPath(path).parent / child).as_posix()
         if target not in hashes:
-            issues.append(f"missing upstream artifact: {target}")
+            derived = (child.name == "replay.mp4" and "tracking_run" in document) or (child.name == "trajectories.csv" and "reconstruction_run" in document)
+            if derived and len(child.parts) == 1:
+                omissions.append(DerivedOmission(artifact_path=target, sha256=artifact["sha256"], manifest_sha256=hashes[path]))
+            else:
+                issues.append(f"missing upstream artifact: {target}")
         elif hashes[target] != artifact["sha256"]:
             raise InvalidBundle(f"producer artifact hash mismatch: {target}")
     for key, value in document.items():

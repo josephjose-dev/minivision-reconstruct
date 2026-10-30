@@ -79,3 +79,16 @@ shift. Producer values remain unchanged in `original`. Time-to-frame corrections
 use the same tolerance and must match exactly one table entry. Larger/ambiguous
 corrections retain null citations and needs_review; they are quarantined separately
 from structurally verified provenance.
+
+Round 2 derived artifact classification (owner ruling): absent `replay.mp4` in a
+reconstruction manifest is derived/presentation (producer
+`src/minivision_reconstruct/reconstruction/pipeline.py:260,287`); absent
+`trajectories.csv` in a movement manifest is a derived tabulation of smoothed/movement
+JSON records (`src/minivision_reconstruct/movement/pipeline.py:146,181`). Only these
+exact role/name combinations are classified `not_supplied_derived`, retaining both
+artifact and manifest SHA-256. Present files always undergo hash verification.
+JSON/JSONL, configs, source tables, tracks, calibration and revision artifacts remain
+evidence-bearing: absence makes provenance incomplete. Empty candidate lists remain
+an explicit missing-input observation, not an incomplete provenance chain or a
+No Incident conclusion. Earlier Round 1 paragraphs describing all omissions/exact
+float comparisons as incomplete are superseded by this Round 2 policy.
