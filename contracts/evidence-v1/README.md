@@ -145,3 +145,10 @@ a source-time interval. Matching bounds use canonical table times; other bounds 
 unchanged. covering_frames records the first/last source frames inside the closed
 interval. A window quarantines only if no frame lies inside; a separately unresolved
 peak still needs review. Raw windows remain untouched. No interpolation is invented.
+
+MIG-03 L3: each raised importer diagnostic now carries a structured code. Message
+text is retained in issues for old consumers; issue_codes is parallel to it and
+missing_inputs is a tuple derived from codes only. Previously stored missing_inputs
+lists remain readable as tuples; older records lacking codes remain readable without
+inventing codes from their historical text. Rewording messages leaves missing_inputs
+unchanged. Importer version1.3.0 identifies these revised decisions.

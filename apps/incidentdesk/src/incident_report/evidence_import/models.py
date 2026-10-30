@@ -12,7 +12,7 @@ MAX_RECORD_BYTES = 256 * 1024
 MAX_BUNDLE_BYTES = 64 * 1024 * 1024
 MAX_FILES = 512
 MAX_RECORDS = 100_000
-IMPORTER_VERSION = "1.2.0"
+IMPORTER_VERSION = "1.3.0"
 # Project assumption, to be validated: serialization noise only, never a frame-sized tolerance.
 TIMESTAMP_TOLERANCE_SECONDS = 1e-9
 
@@ -86,7 +86,8 @@ class DerivedOmission(FrozenRecord):
 
 
 class ImportDecision(FrozenRecord):
-    missing_inputs: list[str] = Field(default_factory=list)
+    missing_inputs: tuple[str, ...] = ()
+    issue_codes: tuple[str, ...] = ()
     not_supplied_derived: tuple[DerivedOmission, ...] = ()
     read_complete: bool = True
     import_id: str
@@ -102,30 +103,17 @@ class ImportDecision(FrozenRecord):
 
     @model_validator(mode="after")
     def expose_missing_inputs(self) -> Self:
-        codes = {
-            "missing_input: no incident candidates": "no_incident_candidates",
-            "missing_input: failed calibration": "calibration_failed",
-            "missing_input: calibration unavailable": "calibration_unavailable",
-            "missing_input: no source timestamps": "source_timestamps_unavailable",
-            "missing_input: incomplete zero-based source timestamp table": "source_timestamps_incomplete",
+        missing_codes = {
+            "no_incident_candidates",
+            "calibration_failed",
+            "calibration_unavailable",
+            "source_timestamps_unavailable",
+            "source_timestamps_incomplete",
+            "upstream_artifacts_missing",
         }
-        missing = {codes[issue] for issue in self.issues if issue in codes}
-        if any(
-            issue.startswith(
-                (
-                    "missing artifact:",
-                    "missing upstream",
-                    "upstream binding unavailable:",
-                    "missing or ambiguous manifest:",
-                    "missing original",
-                    "missing reviewed",
-                    "review chain root",
-                )
-            )
-            for issue in self.issues
-        ):
-            missing.add("upstream_artifacts_missing")
-        object.__setattr__(self, "missing_inputs", sorted(set(self.missing_inputs) | missing))
+        object.__setattr__(
+            self, "missing_inputs", tuple(sorted(set(self.missing_inputs) | (set(self.issue_codes) & missing_codes)))
+        )
         return self
 
 
