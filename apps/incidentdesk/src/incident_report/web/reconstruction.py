@@ -95,6 +95,22 @@ def install_reconstruction(app: FastAPI, log: RunLog, error_page: Callable[[Requ
                         fields.get("reason", ""),
                         reconfirm_id=int(fields["reconfirm_id"]) if fields.get("reconfirm_id") else None,
                     )
+                elif action == "alignment":
+                    from incident_report.reconstruction.alignment import Alignment, record_alignment
+
+                    record_alignment(
+                        workspace,
+                        run_id,
+                        Alignment(
+                            fields.get("view", ""),
+                            fields.get("reference", ""),
+                            float(fields.get("offset", "")),
+                            float(fields.get("uncertainty", "")),
+                            fields.get("clock_reliability", "unknown"),
+                            fields.get("reviewer", ""),
+                            fields.get("reason", ""),
+                        ),
+                    )
                 else:
                     raise ValueError("Unknown reconstruction action")
 

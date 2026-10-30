@@ -5,6 +5,8 @@ from typing import Any
 
 from incident_report.domain import Report
 
+from .alignment import RELIABILITIES, combined_groups
+from .alignment import history as alignment_history
 from .config import ReconstructionSettings
 from .mapping import Mapping, TrackOption, mapping_history, track_options
 from .paths import list_bundles
@@ -81,9 +83,13 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
         panels[view.sha256] = ViewPanel(
             tuple(groups), tuple(dict.fromkeys(notices)), links, tuple(selections), tuple(tracks), stale
         )
+    alignments = alignment_history(workspace, report.run_id)
     return {
         "reconstruction": panels,
         "reconstruction_tools": tool_links(),
+        "reconstruction_alignments": alignments,
+        "reconstruction_clocks": RELIABILITIES,
+        "reconstruction_combined": combined_groups(panels, alignments),
         "reconstruction_bundles": list_bundles(settings.evidence_exports_root)
         if settings.evidence_exports_root
         else (),

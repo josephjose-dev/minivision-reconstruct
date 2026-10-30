@@ -14,6 +14,7 @@
   {% endfor %}
 {% if reconstruction and not print_view %}
   <script src="/static/js/reconstruction.js" defer></script>
+  {% include 'reconstruction_alignment.html' %}
   <form method="post" action="/reports/{{ report.run_id }}/reconstruction/attach">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Local reconstruction export <select name="bundle" required>{% for bundle in reconstruction_bundles %}<option value="{{ bundle }}">{{ bundle }}</option>{% endfor %}</select></label>

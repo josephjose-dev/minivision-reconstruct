@@ -222,3 +222,21 @@ def test_older_review_cannot_replace_newer_review(database_url: str, incident: u
             workspace.attach(incident, "older-unattached", "reviewer")
         assert workspace.current(incident) == (new,)
         assert workspace.decision(old.import_id).raw_artifacts["bundle.json"] == (root / "old/bundle.json").read_bytes()
+
+
+def test_alignment_history_only_accepts_incident_views(database_url: str, incident: uuid.UUID) -> None:
+    from incident_report.reconstruction.alignment import Alignment, history, record_alignment
+
+    with psycopg.connect(database_url) as conn:
+        workspace = Workspace(conn, ReconstructionSettings(True, FIXTURES))
+        link = workspace.attach(incident, "mig02-relative", "reviewer")[0]
+        assert history(workspace, incident) == ()
+        with pytest.raises(ValueError, match="this incident"):
+            record_alignment(
+                workspace, incident, Alignment("b" * 64, link.view_sha256, 1.0, 0.5, "unknown", "reviewer", "estimate")
+            )
+        a = Alignment(link.view_sha256, link.view_sha256, 0.0, 0.5, "unknown", "reviewer", "reference")
+        b = Alignment(link.view_sha256, link.view_sha256, 0.0, 0.1, "shared_clock_documented", "reviewer", "documented")
+        record_alignment(workspace, incident, a)
+        record_alignment(workspace, incident, b)
+        assert history(workspace, incident) == (a, b)
