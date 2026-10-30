@@ -178,7 +178,9 @@ def inspect_bundle(directory: Path) -> ImportDecision:
             if expected is not None and expected != omission.sha256:
                 raise InvalidBundle("conflicting omitted-derived digests")
             issues[:] = [i for i in issues if i != f"missing artifact: {omission.artifact_path}"]
-        provenance_issues = [i for i in issues if i != "missing_input: no incident candidates"]
+        provenance_issues = [
+            i for i in issues if i != "missing_input: no incident candidates" and not i.startswith("needs_review: ")
+        ]
         return ImportDecision(
             read_complete=read_complete,
             importer_version=IMPORTER_VERSION,

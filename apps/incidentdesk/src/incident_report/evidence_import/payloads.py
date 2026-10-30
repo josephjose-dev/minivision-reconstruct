@@ -133,8 +133,9 @@ class SequenceFields(FrozenRecord):
     event_id: str
     event_type: str
     rank: int = Field(ge=1)
+    peak_frame: int | None = Field(default=None, ge=0)
     peak_time: float | None
-    time_window: tuple[float, float]
+    time_window: tuple[float | None, float | None]
     order_unresolved_with: tuple[str, ...]
 
 

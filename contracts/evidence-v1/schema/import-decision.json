@@ -950,6 +950,19 @@
           "title": "Rank",
           "type": "integer"
         },
+        "peak_frame": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peak Frame"
+        },
         "peak_time": {
           "anyOf": [
             {
@@ -966,10 +979,24 @@
           "minItems": 2,
           "prefixItems": [
             {
-              "type": "number"
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             {
-              "type": "number"
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           ],
           "title": "Time Window",
@@ -1628,7 +1655,7 @@
       "type": "string"
     },
     "importer_version": {
-      "default": "1.1.0",
+      "default": "1.2.0",
       "title": "Importer Version",
       "type": "string"
     },

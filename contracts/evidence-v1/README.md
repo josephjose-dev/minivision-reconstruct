@@ -110,3 +110,11 @@ unchanged original_decision, raw_envelope and raw_artifacts. They are deliberate
 not upgraded to typed evidence: absent typed fields stay absent. Current import IDs
 include version 1.1.0, so re-importing bytes yields a new decision while the historical
 snapshot remains queryable and immutable. Consumers must distinguish the two types.
+
+Round 3: typed sequence peaks resolve through their movement event's peak frame,
+using the same table and tolerance as event citations. Sequence time-window endpoints
+resolve only to unique source table times within that tolerance. Off-table uncertainty
+bounds (for example a half-frame bound) remain null in the typed window and mark the
+sequence needs_review; the producer's complete raw window remains in original. No
+interpolation or nearest-frame snap is invented. Provenance can still be verified
+while these sequence records are quarantined. Importer version is now 1.2.0.

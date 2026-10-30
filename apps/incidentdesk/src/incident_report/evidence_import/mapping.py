@@ -22,6 +22,7 @@ def payload(
     assessments: list[dict[str, Any]],
     chain: list[str],
     frames: dict[int, float],
+    events: dict[str, dict[str, Any]],
 ) -> Payload:
     def action(item: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -148,6 +149,18 @@ def payload(
         data.update(
             {k: row[k] for k in ("event_id", "event_type", "rank", "peak_time", "time_window", "order_unresolved_with")}
         )
+        event = events.get(row["event_id"])
+        frame = None if event is None else event["peak_frame"]
+        canonical = frames.get(frame) if frame is not None else None
+        resolved = canonical is not None and abs(canonical - row["peak_time"]) <= TIMESTAMP_TOLERANCE_SECONDS
+        data["peak_frame"] = frame if resolved else None
+        data["peak_time"] = canonical if resolved else None
+        window: list[float | None] = []
+        for time in row["time_window"]:
+            matches = [value for value in frames.values() if abs(value - time) <= TIMESTAMP_TOLERANCE_SECONDS]
+            window.append(matches[0] if len(matches) == 1 else None)
+        data["time_window"] = window
+
     else:
         data.update(
             video_metadata=source.video_metadata,

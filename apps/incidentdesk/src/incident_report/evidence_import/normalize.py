@@ -151,35 +151,45 @@ def _source(
             raise InvalidBundle("manifest identity or schema mismatch")
         return result
 
+    movement_events = {
+        event["event_id"]: event
+        for event in parsed.get(str(PurePosixPath(source.movement_manifest).parent / "events.jsonl"), [])
+    }
+
     def add(kind: Any, path: str, original: dict[str, Any], token: object, **values: Any) -> None:
+        mapped = payload(
+            kind,
+            original,
+            source,
+            envelope.producer,
+            envelope.case_id,
+            movement,
+            track,
+            {
+                entry["event_id"]: entry["order_unresolved_with"]
+                for doc in parsed.get(str(PurePosixPath(source.movement_manifest).parent / "sequence.json"), [])
+                for entry in doc["entries"]
+            },
+            parsed.get(str(PurePosixPath(source.incident_manifest).parent / "assessments.jsonl"), []),
+            chain_hashes,
+            {
+                r["source_frame"]: r["source_time"]
+                for r in parsed.get(
+                    str(PurePosixPath(source.reconstruction_manifest).parent / "source_frames.jsonl"), []
+                )
+            },
+            movement_events,
+        )
+        if mapped.kind == "sequence" and (mapped.peak_time is None or any(t is None for t in mapped.time_window)):
+            values["needs_review"] = True
+            issues.append(f"needs_review: sequence {mapped.event_id} has unresolved source time")
         records.append(
             NormalizedRecord(
                 record_id=identity(*prefix, path, token),
                 kind=kind,
                 view_id=source.view_id,
                 artifact_path=path,
-                data=payload(
-                    kind,
-                    original,
-                    source,
-                    envelope.producer,
-                    envelope.case_id,
-                    movement,
-                    track,
-                    {
-                        entry["event_id"]: entry["order_unresolved_with"]
-                        for doc in parsed.get(str(PurePosixPath(source.movement_manifest).parent / "sequence.json"), [])
-                        for entry in doc["entries"]
-                    },
-                    parsed.get(str(PurePosixPath(source.incident_manifest).parent / "assessments.jsonl"), []),
-                    chain_hashes,
-                    {
-                        r["source_frame"]: r["source_time"]
-                        for r in parsed.get(
-                            str(PurePosixPath(source.reconstruction_manifest).parent / "source_frames.jsonl"), []
-                        )
-                    },
-                ),
+                data=mapped,
                 original=original,
                 **values,
             )

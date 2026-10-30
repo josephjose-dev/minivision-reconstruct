@@ -653,6 +653,19 @@
           "title": "Rank",
           "type": "integer"
         },
+        "peak_frame": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peak Frame"
+        },
         "peak_time": {
           "anyOf": [
             {
@@ -669,10 +682,24 @@
           "minItems": 2,
           "prefixItems": [
             {
-              "type": "number"
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             {
-              "type": "number"
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           ],
           "title": "Time Window",
