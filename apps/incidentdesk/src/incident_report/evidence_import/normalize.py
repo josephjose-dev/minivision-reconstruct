@@ -39,6 +39,10 @@ def normalize(
         issues.append("missing source bindings")
     if len({source.view_id for source in envelope.sources}) != len(envelope.sources):
         raise InvalidBundle("duplicate view binding")
+    for field in ("original_video_sha256", "reconstruction_manifest", "movement_manifest", "incident_manifest", "reviewed_manifest"):
+        bindings = [getattr(source, field) for source in envelope.sources]
+        if len(bindings) != len(set(bindings)):
+            raise InvalidBundle(f"duplicate source binding: {field}")
     by_hash = {digest: name for name, digest in hashes.items()}
     for source in envelope.sources:
         by_hash[source.original_video_sha256] = "original-video-binding-only"

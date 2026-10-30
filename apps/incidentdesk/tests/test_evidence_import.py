@@ -159,22 +159,19 @@ def test_unresolved_modified_time_never_reuses_original_frame(tmp_path: Path) ->
 
 
 def test_two_views_never_share_track_identity(tmp_path: Path) -> None:
-    from copy import deepcopy
-
-    from evidence_import_fixtures import synthetic_bundle
-
-    root = synthetic_bundle(tmp_path)
-    envelope = json.loads((root / "bundle.json").read_bytes())
-    second = deepcopy(envelope["sources"][0])
-    second["view_id"] = "second-view"
-    envelope["sources"].append(second)
-    (root / "bundle.json").write_text(json.dumps(envelope), encoding="utf-8")
-    result = inspect_bundle(root)
-    first = {r.track_refs[0] for r in result.records if r.kind == "track_reference" and r.view_id == "fixed-camera-1"}
-    second_refs = {
-        r.track_refs[0] for r in result.records if r.kind == "track_reference" and r.view_id == "second-view"
-    }
-    assert first and second_refs and first.isdisjoint(second_refs), result.issues
+    import shutil
+    results = []
+    for name, view in [("mig02-001-01-rear-end", "first-view"), ("mig02-001-07-occluded-impact", "second-view")]:
+        root=tmp_path/view
+        shutil.copytree(FIXTURES/name,root)
+        envelope=json.loads((root/"bundle.json").read_bytes())
+        envelope["sources"][0]["view_id"]=view
+        (root/"bundle.json").write_text(json.dumps(envelope))
+        results.append(inspect_bundle(root))
+    first={r.track_refs[0] for r in results[0].records if r.kind=="track_reference"}
+    second={r.track_refs[0] for r in results[1].records if r.kind=="track_reference"}
+    assert all(r.provenance_state=="verified" for r in results)
+    assert first and second and first.isdisjoint(second)
 
 
 def test_import_has_no_socket_or_ai_import(tmp_path: Path) -> None:
