@@ -21,4 +21,22 @@
 </li>{% endfor %}</ul></li>
 {% else %}<li>No cited events available for this view.</li>{% endfor %}
 </ul>
+{% if panel.stale_mappings %}<details><summary>Previous mappings — needs re-confirmation for the new reconstruction revision</summary>
+<ul>{% for mapping in panel.stale_mappings %}<li>{{ mapping.action }} {{ mapping.party_code or '' }} · {{ mapping.reviewer }} · {{ mapping.reason }} (superseded import {{ mapping.import_id }})</li>{% endfor %}</ul></details>{% endif %}
+{% if panel.tracks %}<details><summary>Associate reconstruction tracks with this view's parties</summary>
+<p>Associations are reviewer-set display aids. They do not determine fault, violations or approval.</p>
+{% for track in panel.tracks %}
+<form method="post" action="/reports/{{ report.run_id }}/reconstruction/mapping">
+<p><strong>{{ track.label }}</strong> · association: {{ track.action }} <span class="meta">(tool track identifier {{ track.track_id }})</span></p>
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<input type="hidden" name="import_id" value="{{ track.import_id }}">
+<input type="hidden" name="view" value="{{ view.sha256 }}">
+<input type="hidden" name="track_ref" value="{{ track.track_ref }}">
+<label>Action <select name="mapping_action"><option value="map">Map to selected party</option><option value="unmap">Unmap</option><option value="cannot_determine">Cannot determine</option></select></label>
+<label>Party from this view <select name="party_code"><option value="">Choose a party</option>{% for code, description in track.parties %}<option value="{{ code }}">{{ description }} ({{ code }})</option>{% endfor %}</select></label>
+<label>Reviewer <input name="reviewer" maxlength="200" required></label>
+<label>Reason <input name="reason" maxlength="4000" required></label>
+<button type="submit">Record association</button>
+{% if track.reconfirm %}<p>Prior association: {{ track.reconfirm.action }} {{ track.reconfirm.party_code or '' }}. Needs re-confirmation for this revision.</p><button type="submit" name="reconfirm_id" value="{{ track.reconfirm.mapping_id }}">Re-confirm prior association on this revision</button>{% endif %}
+</form>{% endfor %}</details>{% endif %}
 {% endif %}

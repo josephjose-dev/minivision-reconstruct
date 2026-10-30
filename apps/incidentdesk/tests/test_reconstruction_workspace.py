@@ -46,6 +46,83 @@ def test_feature_off_refuses_attachment(database_url: str, incident: uuid.UUID) 
         Workspace(conn, ReconstructionSettings(False, FIXTURES)).attach(incident, "mig02-relative", "reviewer")
 
 
+def test_mapping_requires_same_view_and_keeps_action_history(database_url: str, incident: uuid.UUID) -> None:
+    from incident_report.reconstruction.mapping import map_track, mapping_history, track_options
+
+    with psycopg.connect(database_url) as conn:
+        workspace = Workspace(conn, ReconstructionSettings(True, FIXTURES))
+        link = workspace.attach(incident, "mig02-relative", "reviewer")[0]
+        options = track_options(workspace, incident, link)
+        assert options and all(option.action == "unmapped" for option in options)
+        conn.execute(
+            "UPDATE runs SET report=jsonb_set(report,'{facts}',%s::jsonb) WHERE run_id=%s",
+            (
+                json.dumps(
+                    {
+                        "parties": [
+                            {"view_id": link.view_sha256, "party_code": "P1", "description": "White Toyota sedan"},
+                            {"view_id": "b" * 64, "party_code": "P2", "description": "Blue Ford pickup"},
+                        ]
+                    }
+                ),
+                incident,
+            ),
+        )
+        ref = options[0].track_ref
+        with pytest.raises(ValueError, match="same view"):
+            map_track(workspace, incident, link.import_id, link.view_sha256, ref, "map", "P2", "reviewer", "checked")
+        map_track(workspace, incident, link.import_id, link.view_sha256, ref, "map", "P1", "reviewer", "checked")
+        assert track_options(workspace, incident, link)[0].label == "White Toyota sedan"
+        map_track(workspace, incident, link.import_id, link.view_sha256, ref, "unmap", None, "reviewer", "uncertain")
+        map_track(
+            workspace, incident, link.import_id, link.view_sha256, ref, "cannot_determine", None, "reviewer", "occluded"
+        )
+        assert [row.action for row in mapping_history(workspace, incident)] == ["map", "unmap", "cannot_determine"]
+        assert track_options(workspace, incident, link)[0].action == "cannot_determine"
+
+
+def test_superseded_mapping_requires_explicit_reconfirmation(
+    database_url: str, incident: uuid.UUID, tmp_path: Path
+) -> None:
+    import shutil
+
+    from incident_report.reconstruction.mapping import map_track, mapping_history, track_options
+
+    root = tmp_path / "exports"
+    for name in ("one", "two"):
+        shutil.copytree(FIXTURES / "mig02-relative", root / name)
+    document = json.loads((root / "two/bundle.json").read_bytes())
+    document["created_at"] = "2026-10-30T12:00:00Z"
+    (root / "two/bundle.json").write_text(json.dumps(document))
+    with psycopg.connect(database_url) as conn:
+        workspace = Workspace(conn, ReconstructionSettings(True, root))
+        old = workspace.attach(incident, "one", "reviewer")[0]
+        ref = track_options(workspace, incident, old)[0].track_ref
+        map_track(
+            workspace, incident, old.import_id, old.view_sha256, ref, "cannot_determine", None, "reviewer", "uncertain"
+        )
+        new = workspace.attach(incident, "two", "reviewer")[0]
+        assert mapping_history(workspace, incident)[0].stale
+        assert all(option.action == "unmapped" for option in track_options(workspace, incident, new))
+        with pytest.raises(ValueError, match="current"):
+            map_track(
+                workspace, incident, old.import_id, old.view_sha256, ref, "cannot_determine", None, "reviewer", "again"
+            )
+        map_track(
+            workspace,
+            incident,
+            new.import_id,
+            new.view_sha256,
+            ref,
+            "cannot_determine",
+            None,
+            "reviewer",
+            "reconfirmed",
+            reconfirm_id=mapping_history(workspace, incident)[0].mapping_id,
+        )
+        assert len(mapping_history(workspace, incident)) == 2
+
+
 def test_revision_supersedes_without_changing_original(database_url: str, incident: uuid.UUID, tmp_path: Path) -> None:
     import hashlib
     import shutil

@@ -80,6 +80,21 @@ def install_reconstruction(app: FastAPI, log: RunLog, error_page: Callable[[Requ
                     ):
                         raise ValueError("Choose an available local export bundle")
                     workspace.attach(run_id, fields["bundle"], fields.get("reviewer", "")[:200])
+                elif action == "mapping":
+                    from incident_report.reconstruction.mapping import map_track
+
+                    map_track(
+                        workspace,
+                        run_id,
+                        fields.get("import_id", ""),
+                        fields.get("view", ""),
+                        fields.get("track_ref", ""),
+                        fields.get("mapping_action", ""),
+                        fields.get("party_code") or None,
+                        fields.get("reviewer", ""),
+                        fields.get("reason", ""),
+                        reconfirm_id=int(fields["reconfirm_id"]) if fields.get("reconfirm_id") else None,
+                    )
                 else:
                     raise ValueError("Unknown reconstruction action")
 

@@ -12,7 +12,7 @@ MAX_RECORD_BYTES = 256 * 1024
 MAX_BUNDLE_BYTES = 64 * 1024 * 1024
 MAX_FILES = 512
 MAX_RECORDS = 100_000
-IMPORTER_VERSION = "1.3.0"
+IMPORTER_VERSION = "1.4.0"
 # Project assumption, to be validated: serialization noise only, never a frame-sized tolerance.
 TIMESTAMP_TOLERANCE_SECONDS = 1e-9
 

@@ -66,6 +66,7 @@ class GeometryFields(FrozenRecord):
 
 
 class TrackFields(FrozenRecord):
+    class_name: str | None = None
     kind: Literal["track_reference"] = "track_reference"
     producer: str
     case_id: str

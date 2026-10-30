@@ -100,6 +100,7 @@ def payload(
             source_quality=row.get("source_quality", row.get("state")),
         )
     elif kind == "track_reference":
+        data["class_name"] = row.get("class_name")
         data.update({k: row[k] for k in ("track_id", "state", "position", "bbox", "provenance")})
         data.update(
             producer=producer,

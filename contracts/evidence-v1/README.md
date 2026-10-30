@@ -151,4 +151,9 @@ text is retained in issues for old consumers; issue_codes is parallel to it and
 missing_inputs is a tuple derived from codes only. Previously stored missing_inputs
 lists remain readable as tuples; older records lacking codes remain readable without
 inventing codes from their historical text. Rewording messages leaves missing_inputs
-unchanged. Importer version1.3.0 identifies these revised decisions.
+unchanged. Importer version 1.3.0 identifies these revised decisions.
+
+Importer 1.4.0 adds optional `class_name` to the typed track reference, copied from
+the producer observation, for the unmapped-track display. Historical records without
+this field remain readable as unknown class; they must be re-imported to gain it.
+Track associations remain reviewer-set display data, separate from fault and AI.
