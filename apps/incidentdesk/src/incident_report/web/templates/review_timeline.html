@@ -13,6 +13,7 @@
   </ul>{% endif %}
   {% endfor %}
 {% if reconstruction and not print_view %}
+  <div class="reconstruction-only">
   <script src="/static/js/reconstruction.js" defer></script>
   {% include 'reconstruction_alignment.html' %}
   <form method="post" action="/reports/{{ report.run_id }}/reconstruction/attach">
@@ -22,4 +23,5 @@
     <button type="submit"{% if not reconstruction_bundles %} disabled{% endif %}>Attach export</button>
     {% if not reconstruction_bundles %}<p>No local export bundles available.</p>{% endif %}
   </form>
+  </div>
 {% endif %}</section>

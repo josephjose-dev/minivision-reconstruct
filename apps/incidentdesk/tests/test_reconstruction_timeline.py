@@ -70,7 +70,7 @@ def test_real_attachment_renders_without_network(
         html = (
             build_environment()
             .get_template("review_timeline.html")
-            .render(report=report, csrf_token=uuid.uuid4().hex, **values)
+            .render(report=report, csrf_token=uuid.uuid4().hex, review_workspace=True, **values)
         )
         if bundle == "mig02-relative":
             assert "Reconstruction proposal" in html
@@ -104,6 +104,42 @@ def test_rejected_proposal_never_gets_confirmed_badge(tmp_path: Path) -> None:
     ]
     rejected = [r for r in rows if r.rejected]
     assert rejected and all(r.review_status == "Rejected by reconstruction reviewer" for r in rejected)
+
+
+def test_modified_unknown_time_never_cites_original_frame(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    from incident_report.web.templating import build_environment
+
+    decision = inspect_bundle(synthetic_bundle(tmp_path, modified=True))
+    assert decision.envelope is not None
+    source = decision.envelope.sources[0]
+    groups = timeline_groups(decision, source.view_id, source.original_video_sha256, ())
+    modified = [r for g in groups for r in g.rows if r.review_status == "Modified by reconstruction reviewer"]
+    assert modified
+    assert all(r.source_frame is None and r.source_time is None and r.needs_review for r in modified)
+    assert all(r.original_time is not None and r.requested_time is not None for r in modified)
+    html = (
+        build_environment()
+        .get_template("reconstruction_view.html")
+        .render(panel=SimpleNamespace(groups=groups, notices=(), links=()), print_view=False, review_workspace=True)
+    )
+    assert "unknown — no frame citation" in html
+
+
+def test_seek_controls_only_appear_with_the_existing_player() -> None:
+    from types import SimpleNamespace
+
+    from incident_report.web.templating import build_environment
+
+    decision = inspect_bundle(FIXTURES / "mig02-relative")
+    assert decision.envelope is not None
+    source = decision.envelope.sources[0]
+    groups = timeline_groups(decision, source.view_id, source.original_video_sha256, ())
+    template = build_environment().get_template("reconstruction_view.html")
+    values = dict(panel=SimpleNamespace(groups=groups, notices=(), links=()), print_view=False)
+    assert "data-seconds=" not in template.render(review_workspace=False, **values)
+    assert "data-seconds=" in template.render(review_workspace=True, **values)
 
 
 def test_imported_reason_is_escaped_and_pdf_excludes_it(tmp_path: Path) -> None:
