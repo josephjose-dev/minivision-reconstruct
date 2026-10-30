@@ -303,3 +303,86 @@ def test_unknown_transform_is_rejected(tmp_path: Path) -> None:
         envelope["sources"][0]["transformations"] = [{"operation": "crop", "x": 200}]
 
     assert inspect_bundle(synthetic_bundle(tmp_path, transform=transform)).provenance_state == "rejected"
+
+
+@pytest.mark.parametrize("field", ["reconstruction_manifest", "movement_manifest", "incident_manifest"])
+def test_missing_manifest_is_incomplete_with_available_records(tmp_path: Path, field: str) -> None:
+    from evidence_import_fixtures import synthetic_bundle
+
+    root = synthetic_bundle(tmp_path)
+    envelope = json.loads((root / "bundle.json").read_bytes())
+    (root / envelope["sources"][0][field]).unlink()
+    result = inspect_bundle(root)
+    assert result.provenance_state == "incomplete_provenance", result.issues
+    assert any(r.kind == "event_proposal" for r in result.records)
+    assert result.quarantined_records and not result.accepted_records
+
+
+def test_review_chain_cannot_skip_revisions(tmp_path: Path) -> None:
+    from evidence_import_fixtures import synthetic_bundle
+
+    def skip_revision(documents: dict[str, list[dict[str, Any]]], envelope: dict[str, Any]) -> None:
+        oldest = next(rows[0] for name, rows in documents.items() if "reviews/revision-001/revision.json" in name)
+        latest = next(rows[0] for name, rows in documents.items() if "reviews/revision-003/revision.json" in name)
+        latest["previous_sha256"] = oldest["previous_sha256"]
+
+    result = inspect_bundle(synthetic_bundle(tmp_path, transform=skip_revision))
+    assert result.provenance_state == "rejected"
+
+
+@pytest.mark.parametrize("name", ["unknown-version", "path-traversal", "hash-mismatch", "malformed-jsonl"])
+def test_committed_handmade_negative_fixtures(name: str) -> None:
+    assert inspect_bundle(FIXTURES / "negative" / name).provenance_state == "rejected"
+
+
+def test_all_committed_fixture_bytes_match_frozen_hashes() -> None:
+    expected = json.loads((FIXTURES / "SHA256SUMS.json").read_bytes())
+    assert expected
+    assert all(
+        hashlib.sha256((FIXTURES / name).read_bytes()).hexdigest() == digest for name, digest in expected.items()
+    )
+
+
+def test_movement_events_are_normalized_with_source_citations(tmp_path: Path) -> None:
+    from evidence_import_fixtures import synthetic_bundle
+
+    result = inspect_bundle(synthetic_bundle(tmp_path))
+    events = [r for r in result.records if r.kind == "event_proposal" and "/movement/" in r.artifact_path]
+    assert events
+    assert all(r.source_frame is not None and r.timestamp_provenance is not None for r in events)
+
+
+def test_case_identity_never_collides(tmp_path: Path) -> None:
+    from evidence_import_fixtures import synthetic_bundle
+
+    first = inspect_bundle(synthetic_bundle(tmp_path / "a"))
+
+    def change_case(documents: dict[str, list[dict[str, Any]]], envelope: dict[str, Any]) -> None:
+        envelope["case_id"] = "different-case"
+
+        def change(value: Any) -> None:
+            if isinstance(value, dict):
+                if "case_id" in value:
+                    value["case_id"] = "different-case"
+                for nested in value.values():
+                    change(nested)
+            elif isinstance(value, list):
+                for nested in value:
+                    change(nested)
+
+        change(documents)
+
+    second = inspect_bundle(synthetic_bundle(tmp_path / "b", transform=change_case))
+    first_refs = {r.track_refs[0] for r in first.records if r.kind == "track_reference"}
+    second_refs = {r.track_refs[0] for r in second.records if r.kind == "track_reference"}
+    assert first_refs and second_refs and first_refs.isdisjoint(second_refs), second.issues
+
+
+def test_real_producer_revision_contains_all_three_review_actions() -> None:
+    root = FIXTURES / "mig02-multi-review"
+    revision = next(root.rglob("reviews/revision-001/revision.json"))
+    document = json.loads(revision.read_bytes())
+    assert {d["action"] for d in document["document"]["decisions"]} == {"confirm", "reject", "modify"}
+    result = inspect_bundle(root)
+    assert result.provenance_state == "incomplete_provenance", result.issues
+    assert sum(r.kind == "review_overlay" for r in result.records) == 3

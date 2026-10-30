@@ -66,6 +66,8 @@ def parse_record(content: bytes) -> dict[str, Any]:
         if isinstance(item, float) and not math.isfinite(item):
             raise InvalidBundle("non-finite JSON number")
         if isinstance(item, dict):
+            if "schema_version" in item and item["schema_version"] != "1.0":
+                raise InvalidBundle("unknown nested producer schema version")
             pending.extend(item.values())
             pending.extend(item.keys())
         elif isinstance(item, list):

@@ -25,12 +25,12 @@ for case in sorted(CASES.glob("mig02-*")):
     incident_path = f"{case.name}/analysis/incident/mig02-incident/manifest.json"
     rec = json.loads((target / rec_path).read_bytes())
     incident = target / case.name / "analysis/incident/mig02-incident"
-    revision = "revision-003" if (incident / "reviews").exists() else "initial"
+    revision = sorted(p.name for p in (incident / "reviews").glob("revision-*"))[-1] if (incident / "reviews").exists() else "initial"
     envelope = {
         "contract_version": "1.0", "producer": "minivision-reconstruct",
         "producer_revision": "c66000af37099e39920ff0e8ac621ce5be09090d",
         "case_id": case.name, "created_at": "2026-10-30T00:00:00Z", "processing_policy": "local_only",
-        "config_identifiers": ["configs/movement.json", "configs/incident.json"],
+        "config_identifiers": [json.loads((target / movement_path).read_bytes())["config_id"], json.loads((target / incident_path).read_bytes())["config_id"]],
         "model_identifiers": ["scripted-tracks-no-detector"],
         "artifacts": {p.relative_to(target).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(target.rglob("*")) if p.is_file() and p.name != "bundle.json"},
         "sources": [{

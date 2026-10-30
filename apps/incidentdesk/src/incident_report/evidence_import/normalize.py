@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -65,9 +66,18 @@ def _closure(
             raise InvalidBundle(f"producer artifact hash mismatch: {target}")
     for key, value in document.items():
         # Original video is bound by digest, intentionally not copied into the JSON evidence package.
-        if key.endswith("_sha256") and value is not None and key not in {"source_video_sha256", "revision_sha256"}:
-            if not isinstance(value, str) or len(value) != 64:
+        if key.endswith("_sha256") and value is not None:
+            if not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value):
                 raise InvalidBundle("invalid producer digest")
+            if key == "source_video_sha256":
+                continue
+            if key == "revision_sha256":
+                target = str(PurePosixPath(path).parent / "revision.json")
+                if target not in hashes:
+                    issues.append(f"missing upstream revision: {target}")
+                elif hashes[target] != value:
+                    raise InvalidBundle("revision sidecar hash mismatch")
+                continue
             if value not in by_hash:
                 issues.append(f"missing upstream hash: {path}:{key}")
     if document.get("rule_source") is not None:
@@ -138,6 +148,9 @@ def _source(
         (reviewed, "review_revision", source.review_revision),
     )
     for document, key, expected in checks:
+        if expected is None:
+            issues.append(f"upstream binding unavailable: {key}")
+            continue
         if document and document.get(key) != expected:
             raise InvalidBundle(f"source binding mismatch: {key}")
     calibration_digest = reconstruction.get("source_calibration_sha256")
@@ -150,6 +163,12 @@ def _source(
             issues.append("missing_input: calibration unavailable")
         else:
             calibration = calibration_rows[0]
+            if (
+                calibration.get("case_id"),
+                calibration.get("source_video_sha256"),
+                calibration.get("calibration_id"),
+            ) != (envelope.case_id, source.original_video_sha256, source.calibration_revision):
+                raise InvalidBundle("calibration source binding mismatch")
             if calibration.get("validation_passed") is not True:
                 issues.append("missing_input: failed calibration")
             if movement and (
@@ -179,7 +198,7 @@ def _source(
             or frame < 0
             or not isinstance(time, (float, int))
             or time < 0
-            or not row["timestamp_source"]
+            or row["timestamp_source"] not in {"presentation_timestamp", "frame_rate_fallback"}
         ):
             raise InvalidBundle("invalid source timestamp")
         if frame in time_by_frame or time in frame_by_time:
@@ -188,6 +207,11 @@ def _source(
         frame_by_time[time] = frame
     if not timestamps:
         issues.append("missing_input: no source timestamps")
+    if reconstruction and (
+        reconstruction.get("source_frame_count") != len(time_by_frame)
+        or any(frame != index for index, frame in enumerate(sorted(time_by_frame)))
+    ):
+        issues.append("missing_input: incomplete zero-based source timestamp table")
 
     def citation(frame: Any, time: Any) -> dict[str, Any]:
         if frame is not None and (type(frame) is not int or frame < 0):
@@ -238,6 +262,21 @@ def _source(
                 **citation(row["source_frame"], row.get("source_time", row.get("timestamp_seconds"))),
             )
     sequence_path = str(mov_root / "sequence.json")
+    movement_event_path = str(mov_root / "events.jsonl")
+    for event in load(movement_event_path):
+        if event["status"] not in STATUSES or (movement and event["unit"] != movement["unit"]):
+            raise InvalidBundle("invalid movement event status or units")
+        for boundary in ("start", "end"):
+            citation(event[f"{boundary}_frame"], event[f"{boundary}_time"])
+        add(
+            "event_proposal",
+            movement_event_path,
+            event,
+            event["event_id"],
+            track_refs=tuple(track(t) for t in event["track_ids"]),
+            producer_status=event["status"],
+            **citation(event["peak_frame"], event["peak_time"]),
+        )
     for document in load(sequence_path):
         for row in document["entries"]:
             add("sequence", sequence_path, row, row["event_id"], track_refs=tuple(track(t) for t in row["track_ids"]))
@@ -284,6 +323,11 @@ def _source(
                 decisions[decision_key] = decision
         previous = revision["previous_sha256"]
         if previous == hashes.get(source.incident_manifest):
+            if expected_revision != "revision-001":
+                raise InvalidBundle("review chain skips preceding revisions")
+            break
+        if expected_revision == "revision-001" and source.incident_manifest not in hashes:
+            issues.append("review chain root incident manifest unavailable")
             break
         revision_hash = previous
         # IDs are producer revision-NNN; verify backwards order rather than trusting arbitrary linked JSON.

@@ -48,3 +48,19 @@ interval [3.0, 3.2), builds a separate non-metric calibration through the produc
 run without editing worker code. The arbitrary coordinate plane has no physical
 measurement claim. This fixture supplies actual `lost`, `interpolated` and
 `relative_units` records for inspection and PostgreSQL round-trip tests.
+
+Handmade on-disk rejection bundles are in `negative/`: unknown version, unsafe
+relative path, hash mismatch and malformed JSONL. The remaining scoped negative
+fixtures are constructed in temporary directories by `evidence_import_fixtures.py`
+and `test_evidence_import.py`: record budget/size, missing manifests/revision,
+rejected parent + unreviewed assessment, off-table correction, colliding view IDs,
+empty candidate list, failed calibration, unsupported transformation, and skipped
+review chain. These preserve strong assertions without duplicating large bundles.
+
+`mig02-multi-review` is an additional unchanged producer export generated with
+`PYTHONPATH=src "$WORKER_PYTHON" integration/generate_mig02_mixed_review.py`.
+It renders two scripted rear-end pairs in parallel, with the second synthetic
+coordinate path displaced by 8 arbitrary scene units. The single `revision-001`
+contains all three actions together: confirm one event, reject an assessment,
+modify the other event. The displacement and +0.001 s modification are fixture
+inputs, not safety/accuracy thresholds or measurements inferred from footage.

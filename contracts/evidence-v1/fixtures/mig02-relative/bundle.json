@@ -37,8 +37,8 @@
   },
   "case_id": "mig02-relative",
   "config_identifiers": [
-    "configs/movement.json",
-    "configs/incident.json"
+    "movement-week7-002",
+    "incident-week8-002"
   ],
   "contract_version": "1.0",
   "created_at": "2026-10-30T00:00:00Z",
