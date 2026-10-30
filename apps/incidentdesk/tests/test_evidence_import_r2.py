@@ -52,3 +52,11 @@ def test_typed_contract_exposes_geometry_and_evidence() -> None:
     assert event.data.event_id == event.original["event_id"]
     assert event.data.start_frame >= 0
 
+
+def test_importer_version_changes_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    from incident_report.evidence_import import reader
+    before=inspect_bundle(FIXTURES/'mig02-relative')
+    monkeypatch.setattr(reader,'IMPORTER_VERSION','test-next')
+    after=inspect_bundle(FIXTURES/'mig02-relative')
+    assert before.import_id!=after.import_id
+    assert after.importer_version=='test-next'

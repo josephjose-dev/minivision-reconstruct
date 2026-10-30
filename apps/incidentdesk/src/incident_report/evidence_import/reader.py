@@ -16,6 +16,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from .models import (
+    IMPORTER_VERSION,
     MAX_BUNDLE_BYTES,
     MAX_FILE_BYTES,
     MAX_FILES,
@@ -139,7 +140,7 @@ def inspect_bundle(directory: Path) -> ImportDecision:
     try:
         read_files(directory, raw)
         hashes = {name: hashlib.sha256(content).hexdigest() for name, content in sorted(raw.items())}
-        identity = hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
+        identity = hashlib.sha256(json.dumps([IMPORTER_VERSION, hashes], sort_keys=True).encode()).hexdigest()
         envelope = Envelope.model_validate(parse_record(raw["bundle.json"]))
         issues: list[str] = []
         for name, digest in envelope.artifacts.items():
@@ -172,6 +173,7 @@ def inspect_bundle(directory: Path) -> ImportDecision:
         normalized = normalize(envelope, parsed, hashes, issues, omissions)
         provenance_issues = [i for i in issues if i != "missing_input: no incident candidates"]
         return ImportDecision(
+            importer_version=IMPORTER_VERSION,
             import_id=identity,
             not_supplied_derived=tuple(omissions),
             provenance_state="incomplete_provenance" if provenance_issues else "verified",
@@ -190,6 +192,7 @@ def inspect_bundle(directory: Path) -> ImportDecision:
     except (InvalidBundle, ValidationError, ValueError, OSError, KeyError, TypeError, RecursionError) as exc:
         hashes = {name: hashlib.sha256(content).hexdigest() for name, content in sorted(raw.items())}
         return ImportDecision(
+            importer_version=IMPORTER_VERSION,
             import_id=identity,
             provenance_state="rejected",
             issues=(f"{type(exc).__name__}: {exc}",),
