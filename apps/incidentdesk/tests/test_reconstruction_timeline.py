@@ -142,6 +142,20 @@ def test_seek_controls_only_appear_with_the_existing_player() -> None:
     assert "data-seconds=" in template.render(review_workspace=True, **values)
 
 
+def test_browser_print_retains_original_app_citations() -> None:
+    from types import SimpleNamespace
+
+    from incident_report.web.templating import build_environment
+
+    sha = "a" * 64
+    moment = SimpleNamespace(view_id=sha, timestamp_seconds=2.5, kind="event")
+    view = SimpleNamespace(sha256=sha, label="Front", filename="front.mp4")
+    html = build_environment().get_template("reconstruction_print_timeline.html").render(view=view, moments=[moment])
+    assert 'class="reconstruction-print-fallback" hidden' in html
+    assert sha + " @ 2.5s" in html and "Event" in html
+    assert "data-seconds=" not in html and "Reconstruction proposal" not in html
+
+
 def test_imported_reason_is_escaped_and_pdf_excludes_it(tmp_path: Path) -> None:
     from types import SimpleNamespace
     from typing import Any

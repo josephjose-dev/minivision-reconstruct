@@ -4,7 +4,7 @@
   {% for view in report.views %}
   <h3><bdi dir="auto">{{ view.label or view.filename }}</bdi></h3>
   {% set moments = report.storyline | selectattr('view_id', 'equalto', view.sha256) | list %}
-  {% if reconstruction and not print_view %}{% set panel = reconstruction[view.sha256] %}{% include 'reconstruction_view.html' %}{% else %}<ul class="review-moments">
+  {% if reconstruction and not print_view %}{% set panel = reconstruction[view.sha256] %}{% include 'reconstruction_view.html' %}{% include 'reconstruction_print_timeline.html' %}{% else %}<ul class="review-moments">
     {% for item in moments %}
     <li>{{ citation(item) }} {{ {'event': 'Event', 'note': 'Observation', 'contact': 'Candidate collision'}.get(item.kind, 'After the contact') }}</li>
     {% else %}
