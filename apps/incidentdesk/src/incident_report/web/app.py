@@ -76,6 +76,7 @@ from incident_report.web.access import (
 from incident_report.web.body_limit import BodyTooLargeError, read_limited_body
 from incident_report.web.decisions import decision_context, install_decisions
 from incident_report.web.questions import install_questions
+from incident_report.web.reconstruction import install_reconstruction, reconstruction_context
 from incident_report.web.review import accessible_report, install_review
 from incident_report.web.staging import StagedUpload, StagingUnavailable, UploadStages
 from incident_report.web.templating import build_environment
@@ -536,6 +537,7 @@ def create_app(
         if run.status is RunStatus.SUCCEEDED and run.report is not None:
             try:
                 context = decision_context(request, log, run, version)
+                context.update(reconstruction_context(log, run.report))
             except DecisionRefused as exc:
                 return error_page(request, exc.status_code, exc.message)
             return templates.TemplateResponse(
@@ -652,6 +654,8 @@ def create_app(
         try:
             run = accessible_report(log, request, run_id)
             context = decision_context(request, log, run, version)
+            if run.report is not None:
+                context.update(reconstruction_context(log, run.report))
         except HTTPException as exc:
             return error_page(request, exc.status_code, str(exc.detail))
         except DecisionRefused as exc:
@@ -683,6 +687,7 @@ def create_app(
     install_questions(app, log, question_store, qa_connection, evidence, error_page)
     install_review(app, log, evidence)
     install_decisions(app, log, error_page)
+    install_reconstruction(app, log, error_page)
 
     @app.post("/reports/{run_id}/retry")
     async def retry_report(request: Request, run_id: uuid.UUID, background_tasks: BackgroundTasks) -> Response:
