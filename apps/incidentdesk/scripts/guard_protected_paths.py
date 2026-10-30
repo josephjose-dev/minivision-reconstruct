@@ -47,6 +47,7 @@ PROTECTED_DIRS = (
     "apps/incidentdesk/docs/adr/",
     "apps/incidentdesk/docs/reference/",
     "apps/incidentdesk/scripts/",
+    # Root worker entries are the collaborator's paths.
     "src/minivision_reconstruct/",
     "tests/",
     "evaluation/",
@@ -62,7 +63,7 @@ PROTECTED_FILES = (
     "implementation_plan.md",
 )
 # Not blocked, only reported: if these change, the guards themselves may have changed.
-WATCHED_PREFIXES = (".github/", "scripts/", ".pre-commit-config.yaml", "apps/incidentdesk/scripts/")
+WATCHED_PREFIXES = (".github/", "scripts/", ".pre-commit-config.yaml")
 MAX_LISTED = 30  # keep the log readable when a whole tree counts as new
 
 

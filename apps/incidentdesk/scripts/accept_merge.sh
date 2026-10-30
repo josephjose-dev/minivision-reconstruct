@@ -7,8 +7,8 @@
 #   1. refuses if the working tree is dirty, or if you are on main/master;
 #   2. runs `git merge --no-ff <branch>`; on a conflict it stops and leaves the merge for you (never auto-resolves);
 #   3. runs scripts/check_all.sh against the integration branch as it was before the merge;
-#   4. only if every check passed, pushes the integration branch and then the ticket branch.
-# It never force-pushes and never pushes main. If a check fails, nothing is pushed; the local merge commit
+#   4. leaves the checked merge local for owner review; never pushes.
+# It never pushes; publication belongs to the owner. If a check fails, nothing is pushed; the local merge commit
 # stays so you can look, and `git reset --hard ORIG_HEAD` (your decision) undoes it.
 set -euo pipefail
 
@@ -60,9 +60,7 @@ if ! bash scripts/check_all.sh --base "$before"; then
   exit 1
 fi
 
-echo "All checks passed. Pushing $integration and $ticket."
-git push origin "$integration"
-git push origin "$ticket"
+echo "All checks passed. Merge remains local; owner publishes."
 
 # Remove the ticket's worktree so its old status file can't be mistaken for a new one. Only when the worktree
 # holds nothing but lane status files beyond the merged commit; anything else is left for you to look at.

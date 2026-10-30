@@ -1635,7 +1635,7 @@ Source: `josephjose-dev/RTA-ACCIDENT-AGENT`, commit `347a778576861ef972236781bc3
 - `dataset/manifest.json` (458ed2f1e9846ea9cdba8eddca5302c5ecda69ba): D8: evaluation stays in donor
 - `dataset/probes/probes.json` (15f8458c6eb81fe632cbdbf45b15883916182c1d): D8: evaluation stays in donor
 - `dataset/proposed_manifest.csv` (0be3619f6fbe135261fc29368a60f97c5d041604): D8: evaluation stays in donor
-- `dataset/reference/RTA Incident Report — DA6E840A.pdf` (469f30b687974616f82ec60a07edefc75909f0be): D8: evaluation stays in donor
+- `dataset/reference/RTA Incident Report â€” DA6E840A.pdf` (469f30b687974616f82ec60a07edefc75909f0be): D8: evaluation stays in donor
 - `dataset/reference/historical_traffic.csv` (29cc5d48f2d98babad74565716f80ec44addab14): D8: evaluation stays in donor
 - `dataset/truth/CONFLICTS.md` (65c90c9625c0ae7819a0df478e596ae63016f72a): D8: evaluation stays in donor
 - `dataset/truth/GEMINI_DENSE_TRUTH_PROMPT.md` (c4dec43363e61c8434fa8106d96d0794e700b8bc): D8: evaluation stays in donor
@@ -1931,7 +1931,6 @@ Source: `josephjose-dev/RTA-ACCIDENT-AGENT`, commit `347a778576861ef972236781bc3
 - `results/rules_catalogue/postcommit-guards.log` (11d328f6259d1fa0b81d135ca216f74ace14bace): D8: evaluation stays in donor
 - `scripts/export_sample_recordings.py` (b522a41a69c59989dea232b30d84f14100e09bec): D8 / scope: evaluation or donor-only tooling
 - `scripts/lane_watch.sh` (c6e41629d5e0c34da6ae8828820ddf97054a280d): D8 / scope: evaluation or donor-only tooling
-- `scripts/measure_crash_finder.py` (2551560b97a0a09222d7bf10519628372fb8ad78): D8 / scope: evaluation or donor-only tooling
 - `scripts/measure_motion_windows.py` (9ec624cf68e13a2502ec954c16d56b0c061195a0): D8 / scope: evaluation or donor-only tooling
 - `scripts/replay_collision_pair.py` (db3721f0188ad17c0055d7f53b16967a8c919997): D8 / scope: evaluation or donor-only tooling
 - `scripts/replay_collision_recall_union.py` (a3c3fbbeae8acb960a6dbbc7bd8cfd6edf875099): D8 / scope: evaluation or donor-only tooling
@@ -2001,7 +2000,6 @@ Source: `josephjose-dev/RTA-ACCIDENT-AGENT`, commit `347a778576861ef972236781bc3
 - `tests/test_benchmark_review_round2.py` (fc0c2dafb91dab6b06dcec95909697ba2d57b579): D8:  "dataset/, incident_report.benchmark, incident_report.manifest
 - `tests/test_benchmark_statistics.py` (f95dc271253f83fb8d7a719bd0bd831aa40792c6): D8:  incident_report.benchmark
 - `tests/test_browser_e2e.py` (3f09bc81de93556a2125e97ab75b173edde093ba): D8:  "dataset/, "results/
-- `tests/test_crash_finder_motion.py` (c4fe86137b0bb0c07b2245f5c15a7821ef0dd22f): D8:  "dataset/
 - `tests/test_dataset_manifest.py` (6fffc848df59af945b5101d1a61c04c808e5d3e5): D8:  "dataset/, 'dataset/, incident_report.manifest
 - `tests/test_distortions.py` (459f927b06940c7538b1b0ce7994f0fb6cfcfbfa): D8:  "dataset/, "results", "results/, incident_report.benchmark, incident_report.manifest, incident_report.truth_draft
 - `tests/test_e2e_key_rotation.py` (86a61dd3f0866e43e8363a15f6034f2a947c0135): D8:  helper dependency tests/test_browser_e2e.py
@@ -2037,3 +2035,10 @@ Pinned donor collection: 3221. Imported unchanged donor tests: 2757. Left out: 4
 Additional test resource: `docs/research/RTA_RULES_CATALOGUE.md` (2f1495f021be8c3146c39aa56773e3ca5aaa76d4) imported unchanged to `apps/incidentdesk/docs/research/RTA_RULES_CATALOGUE.md`; required by unchanged runtime tests.
 
 Additional test resource: `.gitattributes` (51e47edea235d038d163aa2ecf7351d8bcfed4fa) imported unchanged to `apps/incidentdesk/.gitattributes`; required by unchanged runtime tests.
+
+## Round 2 owner-approved runtime import correction
+
+- `tests/test_crash_finder_motion.py` (c4fe86137b0bb0c07b2245f5c15a7821ef0dd22f) → `apps/incidentdesk/tests/test_crash_finder_motion.py`: imported unchanged by explicit R3 ruling; runtime motion test and sandbox measurement helper, not donor dataset reads.
+- `scripts/measure_crash_finder.py` (2551560b97a0a09222d7bf10519628372fb8ad78) → `apps/incidentdesk/scripts/measure_crash_finder.py`: imported unchanged by explicit R3 ruling; runtime motion test and sandbox measurement helper, not donor dataset reads.
+
+Round 2 count reconciliation: pinned donor 3221 - excluded evaluation 452 = imported donor tests 2769; migration tests 29; final collection 2798. The earlier 464-exclusion / 2770-total arithmetic above records Round 1 only. New Round 2 migration tests: test_dependency_commits.py, test_gate_base.py, test_accept_merge_local.py, test_database_docs.py, test_component_protection.py.

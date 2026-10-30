@@ -193,6 +193,7 @@ def changed_files(repo: Path, rng: Range, *, find_renames: bool = False) -> list
 
 def file_at(repo: Path, ref: str, path: str) -> str | None:
     """Text of `path` as of `ref`, or None if it does not exist there (or is not a regular blob)."""
+    # Trailing -- prevents Git treating long Windows revision:path values as filenames.
     result = git(repo, "show", f"{ref}:{path}", "--", check=False)
     return result.stdout if result.returncode == 0 else None
 

@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# Run every CI check, in the CI order, and stop at the first failure (docs/CI_GUARDRAILS.md).
+# Run every CI check, in the CI order, and report every check failure (docs/CI_GUARDRAILS.md).
 #
 #   scripts/check_all.sh [--base REF] [--head REF]
 #
-# --base defaults to main (the integration branch); override it with --base or BASE=... in the
+# --base defaults to incidentdesk-import-approved (owner-created annotated tag); override it with --base or BASE=... in the
 # environment. Test settings come from an optional, gitignored .env.test (see .env.test.example):
 # PGPASSWORD, TEST_DATABASE_URL, INCIDENT_PG_BIN_DIR. Anything already set in your shell wins over the file.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-BASE="${BASE:-main}"
+BASE="${BASE:-incidentdesk-import-approved}"
 HEAD_REF="HEAD"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --base) BASE="${2:?--base needs a ref}"; shift 2 ;;
+    --base | --Base) BASE="${2:?--base needs a ref}"; shift 2 ;;
     --head) HEAD_REF="${2:?--head needs a ref}"; shift 2 ;;
     -h | --help) sed -n '2,9p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -45,11 +45,13 @@ if [ -f "$settings_file" ]; then
     esac
   done < "$settings_file"
 fi
-# Sensible default: the local PostgreSQL on its standard port, no password in the URL (libpq reads PGPASSWORD).
-export TEST_DATABASE_URL="${TEST_DATABASE_URL:-postgresql://postgres@127.0.0.1:5433/incidentdesk_test_admin}"
+# Local test admin connection on port 5433; used only to create throwaway test databases.
+export TEST_DATABASE_URL="${TEST_DATABASE_URL:-postgresql://postgres@localhost:5433/postgres}"
 if [ -n "${INCIDENT_PG_BIN_DIR:-}" ]; then export INCIDENT_PG_BIN_DIR; fi
 
 passed=0
+failed=0
+uv run python scripts/gate_base.py --base "$BASE" --head "$HEAD_REF"
 run() {
   local name="$1"
   shift
@@ -61,7 +63,7 @@ run() {
     echo
     echo "FAILED: $name"
     echo "check_all: $passed passed, then FAILED at: $name"
-    exit 1
+    failed=$((failed + 1))
   fi
 }
 
@@ -71,14 +73,19 @@ run "ruff format" uv run ruff format --check src tests scripts
 run "ruff check" uv run ruff check src tests scripts
 run "mypy" uv run mypy
 run "pytest" uv run pytest -q -rfE
+run "collaborator paths unchanged" guard collaborator_paths --base "$BASE" --head "$HEAD_REF"
 run "guard_conflict_markers" guard guard_conflict_markers --base "$BASE" --head "$HEAD_REF"
 run "guard_utf8" guard guard_utf8 --base "$BASE" --head "$HEAD_REF"
 run "guard_protected_paths" guard guard_protected_paths --base "$BASE" --head "$HEAD_REF"
 run "guard_test_integrity" guard guard_test_integrity --base "$BASE" --head "$HEAD_REF"
 run "guard_secrets" guard guard_secrets --base "$BASE" --head "$HEAD_REF"
-run "check_dependencies" guard check_dependencies --frozen-import --base "$BASE" --head "$HEAD_REF"
+run "check_dependencies" guard check_dependencies --offline --base "$BASE" --head "$HEAD_REF"
 run "guard_evidence_defaults" guard guard_evidence_defaults --base "$BASE" --head "$HEAD_REF"
 run "guard_migration_immutability" guard guard_migration_immutability --base "$BASE" --head "$HEAD_REF"
 
 echo
-echo "check_all: all $passed/12 checks passed (base: $BASE)"
+if [ "$failed" -ne 0 ]; then
+  echo "check_all: $passed/13 passed, $failed failed (base: $BASE)"
+  exit 1
+fi
+echo "check_all: all $passed/13 checks passed (base: $BASE)"
