@@ -19,7 +19,8 @@ for case in sorted(CASES.glob("mig02-*")):
             destination = target / case.name / path.relative_to(case)
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(path, destination)
-    rec_path = f"{case.name}/analysis/reconstruction/week8-incident/manifest.json"
+    rec_run = "week8-incident-relative" if case.name == "mig02-relative" else "week8-incident"
+    rec_path = f"{case.name}/analysis/reconstruction/{rec_run}/manifest.json"
     movement_path = f"{case.name}/analysis/movement/mig02-movement/manifest.json"
     incident_path = f"{case.name}/analysis/incident/mig02-incident/manifest.json"
     rec = json.loads((target / rec_path).read_bytes())
@@ -31,7 +32,7 @@ for case in sorted(CASES.glob("mig02-*")):
         "case_id": case.name, "created_at": "2026-10-30T00:00:00Z", "processing_policy": "local_only",
         "config_identifiers": ["configs/movement.json", "configs/incident.json"],
         "model_identifiers": ["scripted-tracks-no-detector"],
-        "artifacts": {p.relative_to(target).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(target.rglob("*")) if p.is_file()},
+        "artifacts": {p.relative_to(target).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(target.rglob("*")) if p.is_file() and p.name != "bundle.json"},
         "sources": [{
             "view_id": "fixed-camera-1", "original_video_sha256": rec["source_video_sha256"],
             "reconstruction_manifest": rec_path, "movement_manifest": movement_path, "incident_manifest": incident_path,

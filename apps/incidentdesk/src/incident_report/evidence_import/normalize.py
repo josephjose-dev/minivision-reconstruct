@@ -194,7 +194,7 @@ def _source(
             raise InvalidBundle("citation frame must be a zero-based integer")
         if type(time) not in (int, float) or time < 0:
             raise InvalidBundle("citation time must be a nonnegative source timestamp")
-        row = time_by_frame.get(frame)
+        row = time_by_frame.get(frame) if frame is not None else None
         if row is None or row["source_time"] != time:
             issues.append("source frame/time unresolved")
             return {"needs_review": True}

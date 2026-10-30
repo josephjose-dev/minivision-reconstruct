@@ -39,3 +39,12 @@ are quarantined, never affirmative. Producer `lost` states survive. Synthetic
 negative/completion variations are built separately by
 `apps/incidentdesk/tests/evidence_import_fixtures.py`; those are labelled handmade
 and never claimed to be unchanged producer output.
+
+Additional unchanged producer output: `mig02-relative`. Generated with
+`PYTHONPATH=src "$WORKER_PYTHON" integration/generate_mig02_relative.py` in WSL.
+It supplies the scripted occluded-impact RoadUsers with an explicit interpolation
+interval [3.0, 3.2), builds a separate non-metric calibration through the producer's
+`build_calibration`/`save_calibration_revision` API and reconstructs/analyzes a new
+run without editing worker code. The arbitrary coordinate plane has no physical
+measurement claim. This fixture supplies actual `lost`, `interpolated` and
+`relative_units` records for inspection and PostgreSQL round-trip tests.

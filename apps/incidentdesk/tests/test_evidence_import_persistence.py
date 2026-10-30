@@ -83,3 +83,19 @@ def test_unreadable_attempts_do_not_collapse(database_url: str, tmp_path: Path) 
         assert first.import_id != second.import_id
         assert load_import(first.import_id, conn) is not None
         assert load_import(second.import_id, conn) is not None
+
+
+def test_real_relative_fixture_survives_database_roundtrip(database_url: str) -> None:
+    from evidence_import_fixtures import FIXTURES
+
+    root = FIXTURES / "mig02-relative"
+    with psycopg.connect(database_url) as conn:
+        original = import_bundle(root, conn)
+    with psycopg.connect(database_url) as conn:
+        restored = load_import(original.import_id, conn)
+        assert restored is not None and restored.records == original.records
+        assert {"lost", "interpolated"} <= {
+            r.original.get("state") for r in restored.records if r.kind == "track_reference"
+        }
+        assert {r.original["unit"] for r in restored.records if r.kind == "geometry"} == {"relative_units"}
+        assert restored.raw_artifacts == original.raw_artifacts

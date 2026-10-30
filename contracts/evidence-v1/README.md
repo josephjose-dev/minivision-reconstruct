@@ -61,3 +61,12 @@ Versioning: contract `1.0`, importer `1.0.0`. Unknown contract or producer schem
 versions reject rather than guessing compatibility. Regenerate schemas from the
 Pydantic models when the reviewed contract changes. No existing app behavior or
 fault engine is connected to this module.
+
+Unsupported crop/rotation/scaling transformations reject explicitly; the currently
+supported transformation descriptor is the producer reconstruction replay with its
+relative frame-map path. Native source tables support variable frame rates without
+inventing a frame/rate conversion. JSON text that PostgreSQL JSONB cannot represent
+(NUL or invalid Unicode) rejects while its raw bytes stay in BYTEA. If reading is
+refused before a complete content identity is available, the rejection has a unique
+attempt ID; it cannot be deduplicated as an unrelated unreadable attempt. Such
+unreadable attempts have no claimed byte-identity guarantee.
