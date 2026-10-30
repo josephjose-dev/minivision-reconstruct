@@ -337,6 +337,27 @@
       "title": "EventFields",
       "type": "object"
     },
+    "FrameRate": {
+      "additionalProperties": false,
+      "properties": {
+        "numerator": {
+          "exclusiveMinimum": 0,
+          "title": "Numerator",
+          "type": "integer"
+        },
+        "denominator": {
+          "exclusiveMinimum": 0,
+          "title": "Denominator",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "title": "FrameRate",
+      "type": "object"
+    },
     "GeometryFields": {
       "additionalProperties": false,
       "properties": {
@@ -741,9 +762,7 @@
           "type": "string"
         },
         "video_metadata": {
-          "additionalProperties": true,
-          "title": "Video Metadata",
-          "type": "object"
+          "$ref": "#/$defs/VideoMetadata"
         },
         "transformations": {
           "items": {
@@ -1077,6 +1096,122 @@
         "decisive"
       ],
       "title": "UnresolvedFact",
+      "type": "object"
+    },
+    "VideoMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "original_filename": {
+          "title": "Original Filename",
+          "type": "string"
+        },
+        "duration_seconds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Duration Seconds"
+        },
+        "frame_rate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FrameRate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "width": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Width"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Height"
+        },
+        "codec": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Codec"
+        },
+        "reported_frame_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reported Frame Count"
+        },
+        "frame_count_source": {
+          "enum": [
+            "reported",
+            "derived",
+            "unavailable"
+          ],
+          "title": "Frame Count Source",
+          "type": "string"
+        },
+        "creation_time": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Creation Time"
+        },
+        "extraction_tool": {
+          "title": "Extraction Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "original_filename",
+        "duration_seconds",
+        "frame_rate",
+        "width",
+        "height",
+        "codec",
+        "reported_frame_count",
+        "frame_count_source",
+        "creation_time",
+        "extraction_tool"
+      ],
+      "title": "VideoMetadata",
       "type": "object"
     }
   },

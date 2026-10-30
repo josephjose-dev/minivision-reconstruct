@@ -143,9 +143,27 @@ class Transformation(FrozenRecord):
     mapping: str
 
 
+class FrameRate(FrozenRecord):
+    numerator: int = Field(gt=0)
+    denominator: int = Field(gt=0)
+
+
+class VideoMetadata(FrozenRecord):
+    original_filename: str
+    duration_seconds: float | None = Field(ge=0)
+    frame_rate: FrameRate | None
+    width: int | None = Field(gt=0)
+    height: int | None = Field(gt=0)
+    codec: str | None
+    reported_frame_count: int | None = Field(ge=0)
+    frame_count_source: Literal["reported", "derived", "unavailable"]
+    creation_time: str | None
+    extraction_tool: str
+
+
 class SourceFields(FrozenRecord):
     kind: Literal["source_binding"] = "source_binding"
-    video_metadata: dict[str, object]
+    video_metadata: VideoMetadata
     transformations: tuple[Transformation, ...]
     frame_origin: Literal[0]
     calibration_revision: str

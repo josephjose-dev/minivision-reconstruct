@@ -22,14 +22,14 @@ case/view/tracking-run/revision/track-ID components; track references are never
 parties. Producer event IDs remain in `original.event_id`; source artifact path and
 view identify them across runs. Geometry retains its original units, calibration
 manifest link, uncertainty and nulls; no unit conversion occurs. Ordering ambiguity
-and supporting/contrary evidence remain in original payloads.
+and supporting/contrary evidence are exposed in the discriminated typed `data` payload
+and also retained unchanged in `original`. MIG-03 consumes typed fields only.
 
-The source timestamp table is authoritative. Citation fields are populated only
-when the frame and timestamp match that table exactly; corrections without an exact
-source timestamp have `needs_review=true` and null citation fields. Original windows,
-phases, signals and peak frame remain original beside the effective correction.
-Source time is never substituted with replay/export time. Floating-point differences
-in producer files are conservatively flagged rather than silently rounded.
+The source timestamp table is authoritative. Frame-based citations and typed event
+interval times use its canonical time/provenance within the documented tolerance.
+Producer values, windows, phases and signals remain unchanged in `original`. An
+off-table correction has null citation fields and needs_review, never the old frame.
+Replay/export time never substitutes for source time.
 
 Review revisions are complete snapshots, hash-chained to earlier snapshots and the
 incident manifest. The latest snapshot alone supplies decisions in force, including
@@ -57,7 +57,7 @@ on Windows; UNC/device paths, symlinks, junctions, linked ancestors and special 
 are refused. Supply a stable directory; this is not an OS sandbox against another
 process concurrently replacing filesystem ancestors.
 
-Versioning: contract `1.0`, importer `1.0.0`. Unknown contract or producer schema
+Versioning: contract `1.0`, importer `1.1.0`. Unknown contract or producer schema
 versions reject rather than guessing compatibility. Regenerate schemas from the
 Pydantic models when the reviewed contract changes. No existing app behavior or
 fault engine is connected to this module.
@@ -90,5 +90,17 @@ artifact and manifest SHA-256. Present files always undergo hash verification.
 JSON/JSONL, configs, source tables, tracks, calibration and revision artifacts remain
 evidence-bearing: absence makes provenance incomplete. Empty candidate lists remain
 an explicit missing-input observation, not an incomplete provenance chain or a
-No Incident conclusion. Earlier Round 1 paragraphs describing all omissions/exact
-float comparisons as incomplete are superseded by this Round 2 policy.
+No Incident conclusion. 
+
+`structurally_accepted_records` means validated structure/provenance, never approved
+facts. Needs-review records are quarantined even when the provenance chain is verified.
+IDs include importer_version as well as relative paths and byte hashes, allowing a
+new importer to re-decide the same bytes without overwriting an old immutable import.
+Duplicate video digests or shared run manifests across source views reject.
+
+Migration 0021 adds append-only failed-read blobs keyed by content SHA-256 and
+per-attempt artifact references, so distinct interrupted attempts share the same
+stored bytes. 0020 is unchanged. Both new tables block UPDATE/DELETE/TRUNCATE and
+have a down migration. No raw-envelope copy is duplicated in the parent row for an
+incomplete read. The fixture packager reads the actual producer revision from git;
+it does not require changes to the producer or rewrite checked-in producer artifacts.

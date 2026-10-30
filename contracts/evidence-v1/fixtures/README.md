@@ -64,3 +64,13 @@ coordinate path displaced by 8 arbitrary scene units. The single `revision-001`
 contains all three actions together: confirm one event, reject an assessment,
 modify the other event. The displacement and +0.001 s modification are fixture
 inputs, not safety/accuracy thresholds or measurements inferred from footage.
+
+Round 2: unchanged producer bytes now verify. The importer accepts only float
+serialization differences up to the named 1e-9 s project assumption and cites table
+times. Omitted producer replay MP4 / movement CSV are recorded not_supplied_derived;
+missing evidence JSON/JSONL still quarantines. Deliberate off-table review corrections
+remain needs_review without invalidating otherwise complete provenance. The normal
+crossing case remains missing input for incident determination, never No Incident.
+All earlier claims in this README that these JSON-only packages must be incomplete
+are historical Round 1 behavior, superseded by the owner-approved Round 2 contract.
+No producer code or committed producer artifact was changed for this correction.

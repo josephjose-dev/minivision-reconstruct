@@ -5,7 +5,7 @@ from typing import Any, Literal, Self
 from pydantic import Field, model_validator
 
 from .models_base import FrozenRecord
-from .payloads import Payload
+from .payloads import Payload, VideoMetadata
 
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_RECORD_BYTES = 256 * 1024
@@ -31,7 +31,7 @@ class SourceBinding(FrozenRecord):
     movement_run: str
     incident_run: str
     review_revision: str
-    video_metadata: dict[str, Any]
+    video_metadata: VideoMetadata
     transformations: tuple[dict[str, Any], ...]
     frame_origin: Literal[0]
 

@@ -166,7 +166,13 @@ def payload(
             incident_run=source.incident_run,
             review_revision=source.review_revision,
             source_frame=row.get("source_frame"),
-            source_time=row.get("source_time"),
+            source_time=(
+                frames.get(row["source_frame"])
+                if "source_frame" in row
+                and row["source_frame"] in frames
+                and abs(frames[row["source_frame"]] - row["source_time"]) <= TIMESTAMP_TOLERANCE_SECONDS
+                else None
+            ),
             replay_frame=row.get("replay_frame"),
             replay_time=row.get("replay_time"),
             timestamp_provenance=row.get("timestamp_source"),
