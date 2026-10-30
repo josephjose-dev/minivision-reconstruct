@@ -10,12 +10,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .models import ImportDecision
+from .models import ImportDecision, LegacyImportSnapshot
 from .reader import inspect_bundle
 
 
-def load_import(import_id: str, connection: Any) -> ImportDecision | None:
-    row = connection.execute("SELECT decision FROM evidence_imports WHERE import_id=%s", (import_id,)).fetchone()
+def load_import(import_id: str, connection: Any) -> ImportDecision | LegacyImportSnapshot | None:
+    row = connection.execute(
+        "SELECT decision, raw_envelope FROM evidence_imports WHERE import_id=%s", (import_id,)
+    ).fetchone()
     if row is None:
         return None
     raw = {
@@ -33,6 +35,14 @@ def load_import(import_id: str, connection: Any) -> ImportDecision | None:
             )
         }
     )
+    if row[0].get("importer_version") == "1.0.0":
+        return LegacyImportSnapshot(
+            import_id=import_id,
+            importer_version="1.0.0",
+            original_decision=row[0],
+            raw_artifacts=raw,
+            raw_envelope=None if row[1] is None else bytes(row[1]),
+        )
     return ImportDecision.model_validate({**row[0], "raw_artifacts": raw})
 
 
@@ -42,6 +52,8 @@ def import_bundle(directory: Path, connection: Any) -> ImportDecision:
     with connection.transaction():
         connection.execute("SELECT pg_advisory_xact_lock(%s)", (int(decision.import_id[:15], 16),))
         existing = load_import(decision.import_id, connection)
+        if isinstance(existing, LegacyImportSnapshot):
+            raise ValueError("current content ID collides with a historical import")
         if existing is not None:
             return existing
         connection.execute(

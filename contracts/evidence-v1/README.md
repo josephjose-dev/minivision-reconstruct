@@ -104,3 +104,9 @@ stored bytes. 0020 is unchanged. Both new tables block UPDATE/DELETE/TRUNCATE an
 have a down migration. No raw-envelope copy is duplicated in the parent row for an
 incomplete read. The fixture packager reads the actual producer revision from git;
 it does not require changes to the producer or rewrite checked-in producer artifacts.
+
+Historical importer 1.0.0 decisions load as `LegacyImportSnapshot`, exposing their
+unchanged original_decision, raw_envelope and raw_artifacts. They are deliberately
+not upgraded to typed evidence: absent typed fields stay absent. Current import IDs
+include version 1.1.0, so re-importing bytes yields a new decision while the historical
+snapshot remains queryable and immutable. Consumers must distinguish the two types.

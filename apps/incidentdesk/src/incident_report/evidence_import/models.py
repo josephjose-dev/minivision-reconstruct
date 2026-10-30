@@ -97,3 +97,13 @@ class ImportDecision(FrozenRecord):
     source_hashes: dict[str, str] = Field(default_factory=dict)
     envelope: Envelope | None = None
     raw_artifacts: dict[str, bytes] = Field(default_factory=dict, exclude=True)
+
+
+class LegacyImportSnapshot(FrozenRecord):
+    """Historical decision, deliberately not a current typed evidence decision."""
+
+    import_id: str
+    importer_version: Literal["1.0.0"]
+    original_decision: dict[str, Any]
+    raw_envelope: bytes | None
+    raw_artifacts: dict[str, bytes] = Field(exclude=True)

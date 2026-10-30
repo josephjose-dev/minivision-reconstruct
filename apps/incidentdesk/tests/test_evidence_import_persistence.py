@@ -6,6 +6,7 @@ import psycopg
 import pytest
 
 from evidence_import_fixtures import synthetic_bundle
+from incident_report.evidence_import.models import ImportDecision, LegacyImportSnapshot
 from incident_report.evidence_import.persistence import import_bundle, load_import
 
 
@@ -20,7 +21,7 @@ def test_reimport_and_restart_preserve_one_immutable_import(database_url: str, t
         ).fetchone() == (1,)
     with psycopg.connect(database_url) as conn:
         restored = load_import(first.import_id, conn)
-        assert restored is not None
+        assert isinstance(restored, ImportDecision)
         assert restored.model_dump() == first.model_dump()
         assert restored.raw_artifacts == first.raw_artifacts
         assert conn.execute(
@@ -60,7 +61,7 @@ def test_rejected_bundle_is_persisted_for_audit(database_url: str, tmp_path: Pat
         result = import_bundle(tmp_path, conn)
         assert result.provenance_state == "rejected"
         restored = load_import(result.import_id, conn)
-        assert restored is not None and restored.raw_artifacts["bundle.json"] == b"{bad"
+        assert isinstance(restored, ImportDecision) and restored.raw_artifacts["bundle.json"] == b"{bad"
 
 
 def test_json_null_text_is_auditable_rejection(database_url: str, tmp_path: Path) -> None:
@@ -93,7 +94,7 @@ def test_real_relative_fixture_survives_database_roundtrip(database_url: str) ->
         original = import_bundle(root, conn)
     with psycopg.connect(database_url) as conn:
         restored = load_import(original.import_id, conn)
-        assert restored is not None and restored.records == original.records
+        assert isinstance(restored, ImportDecision) and restored.records == original.records
         assert {"lost", "interpolated"} <= {
             r.original.get("state") for r in restored.records if r.kind == "track_reference"
         }
@@ -143,3 +144,53 @@ def test_failed_blob_store_is_immutable(
     ]
     with psycopg.connect(database_url) as conn, pytest.raises(psycopg.errors.RaiseException, match="immutable"):
         conn.execute(sql.SQL(template).format(sql.Identifier(table)))
+
+
+def test_r1_import_remains_readable_after_upgrade(database_url: str) -> None:
+    import json
+
+    # Exact R1 stored shape: the old acceptance name and no typed data field.
+    from typing import Any
+
+    snapshot: dict[str, Any] = {
+        "import_id": "a" * 64,
+        "importer_version": "1.0.0",
+        "provenance_state": "rejected",
+        "issues": ["original rejection"],
+        "records": [
+            {
+                "record_id": "legacy-record",
+                "kind": "source_binding",
+                "view_id": "camera",
+                "artifact_path": "manifest.json",
+                "original": {},
+                "effective": None,
+                "source_frame": None,
+                "source_time": None,
+                "timestamp_provenance": None,
+                "track_refs": [],
+                "producer_status": None,
+                "parent_status": None,
+                "needs_review": True,
+                "affirmative": False,
+                "officer_approved": False,
+                "rule_source": None,
+            }
+        ],
+        "accepted_records": [],
+        "quarantined_records": [],
+        "source_hashes": {},
+        "envelope": None,
+    }
+    with psycopg.connect(database_url) as conn:
+        conn.execute(
+            "INSERT INTO evidence_imports (import_id,importer_version,provenance_state,decision,raw_envelope) VALUES (%s,%s,%s,%s::jsonb,%s)",
+            ("a" * 64, "1.0.0", "rejected", json.dumps(snapshot), b"original envelope"),
+        )
+        restored = load_import("a" * 64, conn)
+        assert isinstance(restored, LegacyImportSnapshot)
+        assert restored.original_decision == snapshot
+        assert restored.raw_envelope == b"original envelope"
+        assert conn.execute("SELECT decision FROM evidence_imports WHERE import_id=%s", ("a" * 64,)).fetchone() == (
+            snapshot,
+        )
