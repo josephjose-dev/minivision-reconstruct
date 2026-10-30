@@ -181,9 +181,13 @@ def _source(
             },
             movement_events,
         )
-        if mapped.kind == "sequence" and (mapped.peak_time is None or any(t is None for t in mapped.time_window)):
+        if mapped.kind == "sequence" and (mapped.peak_time is None or mapped.covering_frames is None):
             values["needs_review"] = True
-            issues.append(f"needs_review: sequence {mapped.event_id} has unresolved source time")
+            issues.append(
+                f"needs_review: sequence {mapped.event_id} window contains no source frame"
+                if mapped.covering_frames is None
+                else f"needs_review: sequence {mapped.event_id} has unresolved source time"
+            )
         records.append(
             NormalizedRecord(
                 record_id=identity(*prefix, path, token),

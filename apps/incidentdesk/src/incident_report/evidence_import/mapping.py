@@ -155,11 +155,16 @@ def payload(
         resolved = canonical is not None and abs(canonical - row["peak_time"]) <= TIMESTAMP_TOLERANCE_SECONDS
         data["peak_frame"] = frame if resolved else None
         data["peak_time"] = canonical if resolved else None
-        window: list[float | None] = []
+        if len(row["time_window"]) != 2 or row["time_window"][0] > row["time_window"][1]:
+            raise ValueError("invalid source-time interval")
+        window: list[float] = []
         for time in row["time_window"]:
             matches = [value for value in frames.values() if abs(value - time) <= TIMESTAMP_TOLERANCE_SECONDS]
-            window.append(matches[0] if len(matches) == 1 else None)
+            window.append(matches[0] if len(matches) == 1 else time)
         data["time_window"] = window
+        inside = [(time, frame) for frame, time in frames.items() if window[0] <= time <= window[1]]
+        inside.sort()
+        data["covering_frames"] = (inside[0][1], inside[-1][1]) if inside else None
 
     else:
         data.update(

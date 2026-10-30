@@ -129,6 +129,7 @@ class UnresolvedFact(FrozenRecord):
 
 
 class SequenceFields(FrozenRecord):
+    covering_frames: tuple[int, int] | None = None
     kind: Literal["sequence"] = "sequence"
     event_id: str
     event_type: str

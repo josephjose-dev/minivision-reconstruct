@@ -139,3 +139,9 @@ An off-table producer review correction also emits a needs_review issue naming t
 producer target event and requested time. This is a review diagnostic, not missing
 upstream evidence: provenance may remain verified, but the overlay stays quarantined
 with null citation fields. All fault/approval flags remain false.
+
+MIG-03 L1 supersedes Round 3's frame-only window endpoints: sequence time_window is
+a source-time interval. Matching bounds use canonical table times; other bounds stay
+unchanged. covering_frames records the first/last source frames inside the closed
+interval. A window quarantines only if no frame lies inside; a separately unresolved
+peak still needs review. Raw windows remain untouched. No interpolation is invented.
