@@ -99,3 +99,47 @@ def test_real_relative_fixture_survives_database_roundtrip(database_url: str) ->
         }
         assert {r.original["unit"] for r in restored.records if r.kind == "geometry"} == {"relative_units"}
         assert restored.raw_artifacts == original.raw_artifacts
+
+
+def test_failed_reads_share_content_blob(database_url: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from incident_report.evidence_import import reader
+
+    def fail(directory: Path, files: dict[str, bytes]) -> None:
+        files["partial.json"] = b'{"partial":true}'
+        raise reader.InvalidBundle("simulated interrupted read")
+
+    monkeypatch.setattr(reader, "read_files", fail)
+    with psycopg.connect(database_url) as conn:
+        first = import_bundle(tmp_path, conn)
+        second = import_bundle(tmp_path, conn)
+        assert first.import_id != second.import_id
+        assert conn.execute(
+            "SELECT count(*) FROM evidence_import_failed_blobs WHERE content=%s", (b'{"partial":true}',)
+        ).fetchone() == (1,)
+        restored_first = load_import(first.import_id, conn)
+        restored_second = load_import(second.import_id, conn)
+        assert restored_first is not None and restored_first.raw_artifacts == first.raw_artifacts
+        assert restored_second is not None and restored_second.raw_artifacts == second.raw_artifacts
+
+
+@pytest.mark.parametrize("table", ["evidence_import_failed_blobs", "evidence_import_failed_artifacts"])
+@pytest.mark.parametrize("operation", ["UPDATE", "DELETE", "TRUNCATE"])
+def test_failed_blob_store_is_immutable(
+    database_url: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, table: str, operation: str
+) -> None:
+    from psycopg import sql
+
+    from incident_report.evidence_import import reader
+
+    def fail(directory: Path, files: dict[str, bytes]) -> None:
+        files["partial.json"] = b"{}"
+        raise reader.InvalidBundle("read interrupted")
+
+    monkeypatch.setattr(reader, "read_files", fail)
+    with psycopg.connect(database_url) as conn:
+        import_bundle(tmp_path, conn)
+    template = {"UPDATE": "UPDATE {} SET sha256=sha256", "DELETE": "DELETE FROM {}", "TRUNCATE": "TRUNCATE {} CASCADE"}[
+        operation
+    ]
+    with psycopg.connect(database_url) as conn, pytest.raises(psycopg.errors.RaiseException, match="immutable"):
+        conn.execute(sql.SQL(template).format(sql.Identifier(table)))

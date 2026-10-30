@@ -136,9 +136,11 @@ def inspect_bundle(directory: Path) -> ImportDecision:
     raw: dict[str, bytes] = {}
     hashes: dict[str, str] = {}
     # An unreadable/oversized attempt has no complete content identity: never deduplicate it as another attempt.
-    identity = hashlib.sha256(uuid.uuid4().bytes).hexdigest()
+    identity = hashlib.sha256(IMPORTER_VERSION.encode() + uuid.uuid4().bytes).hexdigest()
+    read_complete = False
     try:
         read_files(directory, raw)
+        read_complete = True
         hashes = {name: hashlib.sha256(content).hexdigest() for name, content in sorted(raw.items())}
         identity = hashlib.sha256(json.dumps([IMPORTER_VERSION, hashes], sort_keys=True).encode()).hexdigest()
         envelope = Envelope.model_validate(parse_record(raw["bundle.json"]))
@@ -173,6 +175,7 @@ def inspect_bundle(directory: Path) -> ImportDecision:
         normalized = normalize(envelope, parsed, hashes, issues, omissions)
         provenance_issues = [i for i in issues if i != "missing_input: no incident candidates"]
         return ImportDecision(
+            read_complete=read_complete,
             importer_version=IMPORTER_VERSION,
             import_id=identity,
             not_supplied_derived=tuple(omissions),
@@ -192,6 +195,7 @@ def inspect_bundle(directory: Path) -> ImportDecision:
     except (InvalidBundle, ValidationError, ValueError, OSError, KeyError, TypeError, RecursionError) as exc:
         hashes = {name: hashlib.sha256(content).hexdigest() for name, content in sorted(raw.items())}
         return ImportDecision(
+            read_complete=read_complete,
             importer_version=IMPORTER_VERSION,
             import_id=identity,
             provenance_state="rejected",

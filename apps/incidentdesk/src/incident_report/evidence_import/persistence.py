@@ -24,6 +24,15 @@ def load_import(import_id: str, connection: Any) -> ImportDecision | None:
             "SELECT artifact_path, content FROM evidence_import_artifacts WHERE import_id=%s", (import_id,)
         )
     }
+    raw.update(
+        {
+            name: bytes(content)
+            for name, content in connection.execute(
+                "SELECT a.artifact_path,b.content FROM evidence_import_failed_artifacts a JOIN evidence_import_failed_blobs b USING (sha256) WHERE a.import_id=%s",
+                (import_id,),
+            )
+        }
+    )
     return ImportDecision.model_validate({**row[0], "raw_artifacts": raw})
 
 
@@ -42,10 +51,20 @@ def import_bundle(directory: Path, connection: Any) -> ImportDecision:
                 decision.importer_version,
                 decision.provenance_state,
                 decision.model_dump_json(),
-                decision.raw_artifacts.get("bundle.json"),
+                decision.raw_artifacts.get("bundle.json") if decision.read_complete else None,
             ),
         )
         for name, content in decision.raw_artifacts.items():
+            if not decision.read_complete:
+                connection.execute(
+                    "INSERT INTO evidence_import_failed_blobs (sha256,content) VALUES (%s,%s) ON CONFLICT (sha256) DO NOTHING",
+                    (decision.source_hashes[name], content),
+                )
+                connection.execute(
+                    "INSERT INTO evidence_import_failed_artifacts (import_id,artifact_path,sha256) VALUES (%s,%s,%s)",
+                    (decision.import_id, name, decision.source_hashes[name]),
+                )
+                continue
             connection.execute(
                 "INSERT INTO evidence_import_artifacts (import_id,artifact_path,sha256,content) VALUES (%s,%s,%s,%s)",
                 (decision.import_id, name, decision.source_hashes[name], content),

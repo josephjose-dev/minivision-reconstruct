@@ -86,6 +86,7 @@ class DerivedOmission(FrozenRecord):
 
 class ImportDecision(FrozenRecord):
     not_supplied_derived: tuple[DerivedOmission, ...] = ()
+    read_complete: bool = True
     import_id: str
     importer_version: str = IMPORTER_VERSION
     provenance_state: Literal["verified", "incomplete_provenance", "rejected"]
