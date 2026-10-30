@@ -1,7 +1,9 @@
 -- MIG-03 append-only workspace records. Report/AI/fault tables remain unchanged.
+-- Like 0016, incident existence is validated under a runs row lock in the app.
+-- No runs FK: the benchmark/test reset truncates runs without deleting audit history.
 CREATE TABLE incident_evidence_imports (
  link_id uuid PRIMARY KEY,
- incident_id uuid NOT NULL REFERENCES runs(run_id),
+ incident_id uuid NOT NULL,
  import_id text NOT NULL REFERENCES evidence_imports(import_id),
  view_sha256 text NOT NULL CHECK (view_sha256 ~ '^[a-f0-9]{64}$'),
  source_view_id text NOT NULL,
@@ -14,7 +16,7 @@ CREATE TABLE incident_evidence_imports (
  UNIQUE (incident_id,link_id)
 );
 CREATE TABLE incident_evidence_supersessions (
- incident_id uuid NOT NULL REFERENCES runs(run_id),
+ incident_id uuid NOT NULL,
  old_link_id uuid PRIMARY KEY,
  new_link_id uuid NOT NULL,
  created_at timestamptz NOT NULL DEFAULT now(),
@@ -24,7 +26,7 @@ CREATE TABLE incident_evidence_supersessions (
 );
 CREATE TABLE track_party_mappings (
  mapping_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
- incident_id uuid NOT NULL REFERENCES runs(run_id),
+ incident_id uuid NOT NULL,
  import_id text NOT NULL REFERENCES evidence_imports(import_id),
  track_ref text NOT NULL,
  view_sha256 text NOT NULL,
@@ -37,7 +39,7 @@ CREATE TABLE track_party_mappings (
 );
 CREATE TABLE view_time_alignments (
  alignment_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
- incident_id uuid NOT NULL REFERENCES runs(run_id),
+ incident_id uuid NOT NULL,
  view_sha256 text NOT NULL,
  reference_view_sha256 text NOT NULL,
  offset_seconds double precision NOT NULL CHECK (offset_seconds > '-Infinity'::float8 AND offset_seconds < 'Infinity'::float8),

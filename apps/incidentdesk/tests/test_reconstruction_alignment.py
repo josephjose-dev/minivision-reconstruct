@@ -7,7 +7,7 @@ def test_order_needs_same_reference_and_strictly_separated_intervals() -> None:
     from incident_report.reconstruction.alignment import Alignment, compare
 
     a = Alignment("a", "r", 1.0, 0.2, "reviewer_estimated", "reviewer", "clapper")
-    b = Alignment("b", "r", 0.0, 0.3, "unknown", "reviewer", "estimate")
+    b = Alignment("b", "r", 0.0, 0.3, "reviewer_estimated", "reviewer", "estimate")
     assert compare(2.0, a, 4.0, b) == "before"
     assert compare(2.0, a, 3.5, b) == "order across cameras not determined"
     assert compare(2.0, a, 3.499, b) == "order across cameras not determined"
@@ -15,6 +15,8 @@ def test_order_needs_same_reference_and_strictly_separated_intervals() -> None:
     assert compare(2.0, None, 4.0, b) == "order across cameras not determined"
     other = Alignment("b", "other", 0.0, 0.0, "unknown", "reviewer", "estimate")
     assert compare(2.0, a, 4.0, other) == "order across cameras not determined"
+    unknown = Alignment("b", "r", 0.0, 0.0, "unknown", "reviewer", "unknown clock")
+    assert compare(2.0, a, 10.0, unknown) == "order across cameras not determined"
 
 
 @pytest.mark.parametrize("offset,uncertainty", [(float("nan"), 0.0), (0.0, float("inf")), (0.0, -1.0)])
@@ -57,8 +59,8 @@ def test_combined_groups_keep_citations_native_and_exclude_unresolved_proposals(
     groups_b = timeline_groups(None, "", "b", (b,))
     panels = {"a": SimpleNamespace(groups=groups_a), "b": SimpleNamespace(groups=groups_b)}
     alignments = (
-        Alignment("a", "a", 0.0, 0.5, "unknown", "r", "reason"),
-        Alignment("b", "a", 0.0, 0.5, "unknown", "r", "reason"),
+        Alignment("a", "a", 0.0, 0.5, "reviewer_estimated", "r", "reason"),
+        Alignment("b", "a", 0.0, 0.5, "reviewer_estimated", "r", "reason"),
     )
     assert combined_groups(panels, ()) == ()
     combined = combined_groups(panels, alignments)

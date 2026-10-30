@@ -1,6 +1,7 @@
 #!/bin/sh
 # Run in WSL. These are the collaborator's unchanged entry points and flags.
 set -eu
+case "${INCIDENTDESK_RECONSTRUCTION:-false}" in true|1) ;; *) echo 'Reconstruction workspace is disabled' >&2; exit 2;; esac
 : "${INCIDENTDESK_CASES_ROOT:?Set INCIDENTDESK_CASES_ROOT to the shared local cases root}"
 : "${RECONSTRUCTION_PYTHON:?Set RECONSTRUCTION_PYTHON to the collaborator venv python}"
 case "$INCIDENTDESK_CASES_ROOT" in /*) ;; *) echo 'cases root must be an absolute WSL path' >&2; exit 2;; esac

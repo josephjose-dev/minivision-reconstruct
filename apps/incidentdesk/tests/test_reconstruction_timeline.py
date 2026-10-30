@@ -23,7 +23,10 @@ def test_flag_off_timeline_is_byte_identical() -> None:
     assert env.get_template("review_timeline.html").render(**values) == old.render(**values)
 
 
-def test_real_attachment_renders_without_network(database_url: str, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("bundle", ["mig02-relative", "mig02-001-06-normal-crossing"])
+def test_real_attachment_renders_without_network(
+    database_url: str, monkeypatch: pytest.MonkeyPatch, bundle: str
+) -> None:
     import json
     import socket
     import uuid
@@ -37,7 +40,7 @@ def test_real_attachment_renders_without_network(database_url: str, monkeypatch:
     from incident_report.web.templating import build_environment
 
     identifier = uuid.uuid4()
-    sha = json.loads((FIXTURES / "mig02-relative/bundle.json").read_bytes())["sources"][0]["original_video_sha256"]
+    sha = json.loads((FIXTURES / bundle / "bundle.json").read_bytes())["sources"][0]["original_video_sha256"]
     report = Report(
         run_id=identifier,
         input_hash="a" * 64,
@@ -62,16 +65,21 @@ def test_real_attachment_renders_without_network(database_url: str, monkeypatch:
         monkeypatch.setattr(socket, "create_connection", forbidden)
         monkeypatch.setattr(socket.socket, "connect", forbidden)
         workspace = Workspace(conn, settings)
-        workspace.attach(identifier, "mig02-relative", "synthetic reviewer")
+        workspace.attach(identifier, bundle, "synthetic reviewer")
         values = context(workspace, report, settings)
         html = (
             build_environment()
             .get_template("review_timeline.html")
             .render(report=report, csrf_token=uuid.uuid4().hex, **values)
         )
-        assert "Reconstruction proposal" in html
-        assert "order not determined" in html.lower()
-        assert "data-seconds=" in html
+        if bundle == "mig02-relative":
+            assert "Reconstruction proposal" in html
+            assert "order not determined" in html.lower()
+            assert "data-seconds=" in html
+        else:
+            assert "Reconstruction could not assess this view" in html
+            assert "assessment is unavailable" in html
+            assert "No Incident" not in html
         assert 'name="bundle"' in html
 
 

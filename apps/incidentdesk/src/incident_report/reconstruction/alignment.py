@@ -33,7 +33,15 @@ class Alignment:
 
 
 def compare(a_time: float, a: Alignment | None, b_time: float, b: Alignment | None) -> str:
-    if a is None or b is None or a.reference != b.reference or not math.isfinite(a_time) or not math.isfinite(b_time):
+    if (
+        a is None
+        or b is None
+        or a.reference != b.reference
+        or a.clock_reliability == "unknown"
+        or b.clock_reliability == "unknown"
+        or not math.isfinite(a_time)
+        or not math.isfinite(b_time)
+    ):
         return UNKNOWN_ORDER
     difference = (b_time + b.offset) - (a_time + a.offset)
     uncertainty = a.uncertainty + b.uncertainty
@@ -101,7 +109,7 @@ def combined_groups(panels: Mapping[str, Panel], alignments: tuple[Alignment, ..
     references: dict[str, list[AlignedRow]] = {}
     for view, panel in panels.items():
         alignment = latest.get(view)
-        if alignment is None:
+        if alignment is None or alignment.clock_reliability == "unknown":
             continue
         for group in panel.groups:
             if group.order_unresolved:
@@ -118,13 +126,13 @@ def combined_groups(panels: Mapping[str, Panel], alignments: tuple[Alignment, ..
         rows.sort(key=lambda r: r.aligned_time - r.uncertainty)
         pending: list[AlignedRow] = []
         upper = float("-inf")
-        for row in rows:
-            lower = row.aligned_time - row.uncertainty
+        for aligned in rows:
+            lower = aligned.aligned_time - aligned.uncertainty
             if pending and lower > upper:
                 result.append(AlignedGroup(reference, tuple(pending), len(pending) > 1))
                 pending = []
-            pending.append(row)
-            upper = max(upper, row.aligned_time + row.uncertainty)
+            pending.append(aligned)
+            upper = max(upper, aligned.aligned_time + aligned.uncertainty)
         if pending:
             result.append(AlignedGroup(reference, tuple(pending), len(pending) > 1))
     return tuple(result)
