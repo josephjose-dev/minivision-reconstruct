@@ -242,6 +242,9 @@ def _source(
             raise InvalidBundle(
                 "unsupported source transformation; cropping/scaling/rotation require a reviewed mapping"
             )
+    for scene in load(str(rec_root / "scene.json")):
+        if movement and scene["display_unit"] != movement["unit"]:
+            issues.append("scene display unit mismatch")
     timestamps = load(str(rec_root / "source_frames.jsonl"))
     time_by_frame: dict[int, dict[str, Any]] = {}
     frame_by_time: dict[float, int] = {}

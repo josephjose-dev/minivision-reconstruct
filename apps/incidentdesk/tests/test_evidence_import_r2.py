@@ -60,3 +60,13 @@ def test_importer_version_changes_identity(monkeypatch: pytest.MonkeyPatch) -> N
     after=inspect_bundle(FIXTURES/'mig02-relative')
     assert before.import_id!=after.import_id
     assert after.importer_version=='test-next'
+
+
+def test_scene_unit_disagreement_is_flagged(tmp_path: Path) -> None:
+    from typing import Any
+    from evidence_import_fixtures import synthetic_bundle
+    def mismatch(documents: dict[str,list[dict[str,Any]]],envelope: dict[str,Any]) -> None:
+        for name,rows in documents.items():
+            if name.endswith('/scene.json'):rows[0]['display_unit']='relative_units'
+    result=inspect_bundle(synthetic_bundle(tmp_path,transform=mismatch))
+    assert 'scene display unit mismatch' in result.issues
