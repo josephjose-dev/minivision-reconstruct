@@ -86,6 +86,7 @@ class DerivedOmission(FrozenRecord):
 
 
 class ImportDecision(FrozenRecord):
+    missing_inputs: list[str] = Field(default_factory=list)
     not_supplied_derived: tuple[DerivedOmission, ...] = ()
     read_complete: bool = True
     import_id: str
@@ -98,6 +99,34 @@ class ImportDecision(FrozenRecord):
     source_hashes: dict[str, str] = Field(default_factory=dict)
     envelope: Envelope | None = None
     raw_artifacts: dict[str, bytes] = Field(default_factory=dict, exclude=True)
+
+    @model_validator(mode="after")
+    def expose_missing_inputs(self) -> Self:
+        codes = {
+            "missing_input: no incident candidates": "no_incident_candidates",
+            "missing_input: failed calibration": "calibration_failed",
+            "missing_input: calibration unavailable": "calibration_unavailable",
+            "missing_input: no source timestamps": "source_timestamps_unavailable",
+            "missing_input: incomplete zero-based source timestamp table": "source_timestamps_incomplete",
+        }
+        missing = {codes[issue] for issue in self.issues if issue in codes}
+        if any(
+            issue.startswith(
+                (
+                    "missing artifact:",
+                    "missing upstream",
+                    "upstream binding unavailable:",
+                    "missing or ambiguous manifest:",
+                    "missing original",
+                    "missing reviewed",
+                    "review chain root",
+                )
+            )
+            for issue in self.issues
+        ):
+            missing.add("upstream_artifacts_missing")
+        object.__setattr__(self, "missing_inputs", sorted(set(self.missing_inputs) | missing))
+        return self
 
 
 class LegacyImportSnapshot(FrozenRecord):

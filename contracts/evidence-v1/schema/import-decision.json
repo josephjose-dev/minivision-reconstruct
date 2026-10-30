@@ -1663,6 +1663,13 @@
   },
   "additionalProperties": false,
   "properties": {
+    "missing_inputs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Inputs",
+      "type": "array"
+    },
     "not_supplied_derived": {
       "default": [],
       "items": {

@@ -126,3 +126,11 @@ identities are checked against that producer case, without rewriting artifacts.
 Track identities still use the shared application case plus view/run/revision/track.
 This permits two genuine videos/runs in one shared case while duplicate videos/run
 manifests still reject. Typed source bindings expose producer_case_id explicitly.
+
+ImportDecision.missing_inputs is a typed list of application codes, including
+no_incident_candidates, calibration_failed, calibration_unavailable,
+source_timestamps_unavailable, source_timestamps_incomplete and upstream_artifacts_missing.
+It is populated from the importer's explicit validation issues, including when
+loading prior typed decisions that lacked this field. An empty candidate list can
+have verified file provenance and still carries no_incident_candidates. No consumer
+may interpret verified provenance or an empty event list as No Incident.

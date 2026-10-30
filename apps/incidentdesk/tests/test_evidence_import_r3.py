@@ -43,3 +43,22 @@ def test_unresolvable_sequence_times_stay_unknown(tmp_path: Path) -> None:
     assert record.data.time_window == (None, 0.04)
     assert record.original["peak_time"] == 0.001
     assert record.needs_review and record.record_id in result.quarantined_records
+
+
+def test_missing_inputs_are_explicit_even_with_verified_provenance() -> None:
+    result = inspect_bundle(FIXTURES / "mig02-001-06-normal-crossing")
+    assert result.provenance_state == "verified"
+    assert "no_incident_candidates" in result.missing_inputs
+
+
+def test_failed_calibration_has_a_typed_missing_input(tmp_path: Path) -> None:
+    from typing import Any
+    from evidence_import_fixtures import synthetic_bundle
+
+    def fail(documents: dict[str, list[dict[str, Any]]], envelope: dict[str, Any]) -> None:
+        for name, rows in documents.items():
+            if name.endswith("/calibration.json"):
+                rows[0]["validation_passed"] = False
+
+    result = inspect_bundle(synthetic_bundle(tmp_path, transform=fail))
+    assert "calibration_failed" in result.missing_inputs
