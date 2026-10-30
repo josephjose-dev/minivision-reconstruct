@@ -125,3 +125,19 @@ def test_malformed_derived_hash_is_rejected(tmp_path: Path) -> None:
     envelope["artifacts"][manifest.relative_to(root).as_posix()] = hashlib.sha256(manifest.read_bytes()).hexdigest()
     (root / "bundle.json").write_text(json.dumps(envelope))
     assert inspect_bundle(root).provenance_state == "rejected"
+
+
+def test_envelope_can_list_omitted_derived_artifacts(tmp_path: Path) -> None:
+    import json, shutil
+
+    root = tmp_path / "bundle"
+    shutil.copytree(FIXTURES / "mig02-relative", root)
+    envelope = json.loads((root / "bundle.json").read_bytes())
+    for manifest in root.rglob("manifest.json"):
+        document = json.loads(manifest.read_bytes())
+        for artifact in document.get("artifacts", []):
+            path = manifest.parent / artifact["filename"]
+            if not path.exists() and artifact["filename"] in ("replay.mp4", "trajectories.csv"):
+                envelope["artifacts"][path.relative_to(root).as_posix()] = artifact["sha256"]
+    (root / "bundle.json").write_text(json.dumps(envelope))
+    assert inspect_bundle(root).provenance_state == "verified"

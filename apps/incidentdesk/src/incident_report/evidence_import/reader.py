@@ -173,6 +173,11 @@ def inspect_bundle(directory: Path) -> ImportDecision:
 
         omissions: list[DerivedOmission] = []
         normalized = normalize(envelope, parsed, hashes, issues, omissions)
+        for omission in omissions:
+            expected = envelope.artifacts.get(omission.artifact_path)
+            if expected is not None and expected != omission.sha256:
+                raise InvalidBundle("conflicting omitted-derived digests")
+            issues[:] = [i for i in issues if i != f"missing artifact: {omission.artifact_path}"]
         provenance_issues = [i for i in issues if i != "missing_input: no incident candidates"]
         return ImportDecision(
             read_complete=read_complete,
