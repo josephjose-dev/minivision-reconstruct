@@ -98,3 +98,26 @@ def synthetic_bundle(
     envelope["artifacts"] = hashes
     (root / "bundle.json").write_text(json.dumps(envelope), encoding="utf-8")
     return root
+
+
+def two_view_bundle(root: Path) -> Path:
+    """One application case, two byte-unchanged producer scenes with track IDs 1/2."""
+    root.mkdir(parents=True, exist_ok=True)
+    envelopes = []
+    for name, view in [("mig02-001-01-rear-end", "first-view"), ("mig02-001-07-occluded-impact", "second-view")]:
+        producer = FIXTURES / name
+        envelope = json.loads((producer / "bundle.json").read_bytes())
+        for artifact in envelope["artifacts"]:
+            destination = root / artifact
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(producer / artifact, destination)
+        binding = envelope["sources"][0]
+        binding["view_id"] = view
+        binding["producer_case_id"] = envelope["case_id"]
+        envelopes.append(envelope)
+    shared = envelopes[0]
+    shared["case_id"] = "shared-case"
+    shared["sources"].extend(envelopes[1]["sources"])
+    shared["artifacts"].update(envelopes[1]["artifacts"])
+    (root / "bundle.json").write_text(json.dumps(shared), encoding="utf-8")
+    return root

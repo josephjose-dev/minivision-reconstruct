@@ -118,3 +118,11 @@ bounds (for example a half-frame bound) remain null in the typed window and mark
 sequence needs_review; the producer's complete raw window remains in original. No
 interpolation or nearest-frame snap is invented. Provenance can still be verified
 while these sequence records are quarantined. Importer version is now 1.2.0.
+
+A bundle's envelope case_id is the shared application case. SourceBinding may declare
+producer_case_id to pin each producer run's original case; if omitted it defaults to
+the envelope case for existing single-view bundles. Source manifest and calibration
+identities are checked against that producer case, without rewriting artifacts.
+Track identities still use the shared application case plus view/run/revision/track.
+This permits two genuine videos/runs in one shared case while duplicate videos/run
+manifests still reject. Typed source bindings expose producer_case_id explicitly.

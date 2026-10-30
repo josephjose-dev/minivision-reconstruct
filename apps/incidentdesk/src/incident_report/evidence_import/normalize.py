@@ -124,6 +124,7 @@ def _source(
     records: list[NormalizedRecord] = []
     chain_hashes: list[str] = []
     movement: dict[str, Any] = {}
+    producer_case_id = source.producer_case_id or envelope.case_id
     prefix = (envelope.producer, envelope.case_id, source.view_id, source.tracking_run, source.track_revision)
 
     def track(track_id: int) -> str:
@@ -144,7 +145,7 @@ def _source(
             return {}
         result = documents[0]
         if (
-            result.get("case_id") != envelope.case_id
+            result.get("case_id") != producer_case_id
             or result.get("run_id") != run
             or result.get("schema_version") != "1.0"
         ):
@@ -231,7 +232,7 @@ def _source(
                 calibration.get("case_id"),
                 calibration.get("source_video_sha256"),
                 calibration.get("calibration_id"),
-            ) != (envelope.case_id, source.original_video_sha256, source.calibration_revision):
+            ) != (producer_case_id, source.original_video_sha256, source.calibration_revision):
                 raise InvalidBundle("calibration source binding mismatch")
             if calibration.get("validation_passed") is not True:
                 issues.append("missing_input: failed calibration")

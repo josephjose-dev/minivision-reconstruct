@@ -159,20 +159,38 @@ def test_unresolved_modified_time_never_reuses_original_frame(tmp_path: Path) ->
 
 
 def test_two_views_never_share_track_identity(tmp_path: Path) -> None:
-    import shutil
+    from evidence_import_fixtures import two_view_bundle
+    from incident_report.evidence_import.payloads import TrackFields
 
-    results = []
-    for name, view in [("mig02-001-01-rear-end", "first-view"), ("mig02-001-07-occluded-impact", "second-view")]:
-        root = tmp_path / view
-        shutil.copytree(FIXTURES / name, root)
-        envelope = json.loads((root / "bundle.json").read_bytes())
-        envelope["sources"][0]["view_id"] = view
-        (root / "bundle.json").write_text(json.dumps(envelope))
-        results.append(inspect_bundle(root))
-    first = {r.track_refs[0] for r in results[0].records if r.kind == "track_reference"}
-    second = {r.track_refs[0] for r in results[1].records if r.kind == "track_reference"}
-    assert all(r.provenance_state == "verified" for r in results)
+    result = inspect_bundle(two_view_bundle(tmp_path))
+    assert result.provenance_state == "verified", result.issues
+    tracks = [r for r in result.records if isinstance(r.data, TrackFields)]
+    assert tracks and result.envelope is not None and result.envelope.case_id == "shared-case"
+    first = {r.track_refs[0] for r in tracks if r.view_id == "first-view"}
+    second = {r.track_refs[0] for r in tracks if r.view_id == "second-view"}
     assert first and second and first.isdisjoint(second)
+    for view in ("first-view", "second-view"):
+        fields = [r.data for r in tracks if r.view_id == view and isinstance(r.data, TrackFields)]
+        assert {f.case_id for f in fields} == {"shared-case"}
+        assert {f.track_id for f in fields} == {1, 2}
+        assert {f.tracking_run for f in fields} == {"staged-tracks"}
+        assert {f.revision for f in fields} == {"automatic"}
+    assert len({s.original_video_sha256 for s in result.envelope.sources}) == 2
+    # Rename only the view: producer case/run/revision/track IDs and bytes remain fixed.
+    envelope_path = tmp_path / "bundle.json"
+    envelope = json.loads(envelope_path.read_bytes())
+    envelope["sources"][0]["view_id"] = "renamed-first-view"
+    envelope_path.write_text(json.dumps(envelope))
+    renamed = inspect_bundle(tmp_path)
+    assert renamed.provenance_state == "verified", renamed.issues
+    renamed_first = {
+        r.track_refs[0] for r in renamed.records if r.kind == "track_reference" and r.view_id == "renamed-first-view"
+    }
+    unchanged_second = {
+        r.track_refs[0] for r in renamed.records if r.kind == "track_reference" and r.view_id == "second-view"
+    }
+    assert first.isdisjoint(renamed_first) and renamed_first
+    assert second == unchanged_second
 
 
 def test_import_has_no_socket_or_ai_import(tmp_path: Path) -> None:

@@ -782,6 +782,18 @@
     "SourceFields": {
       "additionalProperties": false,
       "properties": {
+        "producer_case_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Producer Case Id"
+        },
         "kind": {
           "const": "source_binding",
           "default": "source_binding",

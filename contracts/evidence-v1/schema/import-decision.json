@@ -1079,6 +1079,20 @@
     "SourceBinding": {
       "additionalProperties": false,
       "properties": {
+        "producer_case_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Producer Case Id"
+        },
         "view_id": {
           "maxLength": 200,
           "minLength": 1,
@@ -1175,6 +1189,18 @@
     "SourceFields": {
       "additionalProperties": false,
       "properties": {
+        "producer_case_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Producer Case Id"
+        },
         "kind": {
           "const": "source_binding",
           "default": "source_binding",

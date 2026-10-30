@@ -163,6 +163,7 @@ def payload(
 
     else:
         data.update(
+            producer_case_id=source.producer_case_id or case_id,
             video_metadata=source.video_metadata,
             transformations=source.transformations,
             frame_origin=source.frame_origin,

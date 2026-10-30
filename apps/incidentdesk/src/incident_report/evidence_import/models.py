@@ -18,6 +18,7 @@ TIMESTAMP_TOLERANCE_SECONDS = 1e-9
 
 
 class SourceBinding(FrozenRecord):
+    producer_case_id: str | None = Field(default=None, min_length=1, max_length=200)
     view_id: str = Field(min_length=1, max_length=200)
     original_video_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     reconstruction_manifest: str

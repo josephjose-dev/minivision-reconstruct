@@ -163,6 +163,7 @@ class VideoMetadata(FrozenRecord):
 
 
 class SourceFields(FrozenRecord):
+    producer_case_id: str | None = None
     kind: Literal["source_binding"] = "source_binding"
     video_metadata: VideoMetadata
     transformations: tuple[Transformation, ...]
