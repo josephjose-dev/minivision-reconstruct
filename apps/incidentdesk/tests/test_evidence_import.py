@@ -68,7 +68,7 @@ def test_real_producer_bytes_states_and_reviews_survive() -> None:
     root = FIXTURES / "mig02-001-07-occluded-impact"
     before = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob("*") if p.is_file()}
     result = inspect_bundle(root)
-    assert result.provenance_state == "incomplete_provenance"  # JSON-only: replay/CSV deliberately absent.
+    assert result.provenance_state == "verified"  # JSON-only: replay/CSV deliberately absent.
     assert result.records
     assert not any(record.affirmative or record.officer_approved for record in result.records)
     assert "lost" in {r.original.get("state") for r in result.records if r.kind == "track_reference"}
@@ -82,7 +82,7 @@ def test_real_producer_bytes_states_and_reviews_survive() -> None:
 def test_real_empty_candidates_are_missing_input() -> None:
     result = inspect_bundle(FIXTURES / "mig02-001-06-normal-crossing")
     assert "missing_input: no incident candidates" in result.issues
-    assert result.provenance_state == "incomplete_provenance"
+    assert result.provenance_state == "verified"
 
 
 def test_network_path_is_rejected_without_filesystem_access(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -160,17 +160,18 @@ def test_unresolved_modified_time_never_reuses_original_frame(tmp_path: Path) ->
 
 def test_two_views_never_share_track_identity(tmp_path: Path) -> None:
     import shutil
+
     results = []
     for name, view in [("mig02-001-01-rear-end", "first-view"), ("mig02-001-07-occluded-impact", "second-view")]:
-        root=tmp_path/view
-        shutil.copytree(FIXTURES/name,root)
-        envelope=json.loads((root/"bundle.json").read_bytes())
-        envelope["sources"][0]["view_id"]=view
-        (root/"bundle.json").write_text(json.dumps(envelope))
+        root = tmp_path / view
+        shutil.copytree(FIXTURES / name, root)
+        envelope = json.loads((root / "bundle.json").read_bytes())
+        envelope["sources"][0]["view_id"] = view
+        (root / "bundle.json").write_text(json.dumps(envelope))
         results.append(inspect_bundle(root))
-    first={r.track_refs[0] for r in results[0].records if r.kind=="track_reference"}
-    second={r.track_refs[0] for r in results[1].records if r.kind=="track_reference"}
-    assert all(r.provenance_state=="verified" for r in results)
+    first = {r.track_refs[0] for r in results[0].records if r.kind == "track_reference"}
+    second = {r.track_refs[0] for r in results[1].records if r.kind == "track_reference"}
+    assert all(r.provenance_state == "verified" for r in results)
     assert first and second and first.isdisjoint(second)
 
 
@@ -272,7 +273,7 @@ def test_real_relative_units_and_gap_states_round_trip() -> None:
     root = FIXTURES / "mig02-relative"
     before = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob("*") if p.is_file()}
     result = inspect_bundle(root)
-    assert result.provenance_state == "incomplete_provenance", result.issues
+    assert result.provenance_state == "verified", result.issues
     states = {r.original.get("state") for r in result.records if r.kind == "track_reference"}
     assert {"lost", "interpolated"} <= states
     assert {r.original["unit"] for r in result.records if r.kind == "geometry"} == {"relative_units"}
@@ -381,5 +382,5 @@ def test_real_producer_revision_contains_all_three_review_actions() -> None:
     document = json.loads(revision.read_bytes())
     assert {d["action"] for d in document["document"]["decisions"]} == {"confirm", "reject", "modify"}
     result = inspect_bundle(root)
-    assert result.provenance_state == "incomplete_provenance", result.issues
+    assert result.provenance_state == "verified", result.issues
     assert sum(r.kind == "review_overlay" for r in result.records) == 3

@@ -1,8 +1,11 @@
 """Evidence contract v1. Limits are project assumptions, to be validated."""
 
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field, model_validator
+
+from .models_base import FrozenRecord
+from .payloads import Payload
 
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_RECORD_BYTES = 256 * 1024
@@ -12,10 +15,6 @@ MAX_RECORDS = 100_000
 IMPORTER_VERSION = "1.1.0"
 # Project assumption, to be validated: serialization noise only, never a frame-sized tolerance.
 TIMESTAMP_TOLERANCE_SECONDS = 1e-9
-
-
-class FrozenRecord(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid", allow_inf_nan=False)
 
 
 class SourceBinding(FrozenRecord):
@@ -57,6 +56,7 @@ class NormalizedRecord(FrozenRecord):
     ]
     view_id: str
     artifact_path: str
+    data: Payload
     original: dict[str, Any]
     effective: dict[str, Any] | None = None
     source_frame: int | None = Field(default=None, ge=0)
@@ -70,12 +70,18 @@ class NormalizedRecord(FrozenRecord):
     officer_approved: Literal[False] = False
     rule_source: None = None
 
+    @model_validator(mode="after")
+    def check_kind(self) -> Self:
+        if self.data.kind != self.kind:
+            raise ValueError("record kind/payload mismatch")
+        return self
+
 
 class DerivedOmission(FrozenRecord):
     state: Literal["not_supplied_derived"] = "not_supplied_derived"
     artifact_path: str
-    sha256: str
-    manifest_sha256: str
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 class ImportDecision(FrozenRecord):

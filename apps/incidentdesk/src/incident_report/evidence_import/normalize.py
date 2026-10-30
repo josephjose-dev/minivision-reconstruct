@@ -8,6 +8,7 @@ import re
 from pathlib import PurePosixPath
 from typing import Any
 
+from .mapping import payload
 from .models import TIMESTAMP_TOLERANCE_SECONDS, DerivedOmission, Envelope, NormalizedRecord, SourceBinding
 from .reader import InvalidBundle, safe_path
 
@@ -32,14 +33,24 @@ def identity(*parts: object) -> str:
 
 
 def normalize(
-    envelope: Envelope, parsed: dict[str, list[dict[str, Any]]], hashes: dict[str, str], issues: list[str], omissions: list[DerivedOmission]
+    envelope: Envelope,
+    parsed: dict[str, list[dict[str, Any]]],
+    hashes: dict[str, str],
+    issues: list[str],
+    omissions: list[DerivedOmission],
 ) -> tuple[NormalizedRecord, ...]:
     """Hash closure includes every supplied manifest, even older reviewed revisions."""
     if not envelope.sources:
         issues.append("missing source bindings")
     if len({source.view_id for source in envelope.sources}) != len(envelope.sources):
         raise InvalidBundle("duplicate view binding")
-    for field in ("original_video_sha256", "reconstruction_manifest", "movement_manifest", "incident_manifest", "reviewed_manifest"):
+    for field in (
+        "original_video_sha256",
+        "reconstruction_manifest",
+        "movement_manifest",
+        "incident_manifest",
+        "reviewed_manifest",
+    ):
         bindings = [getattr(source, field) for source in envelope.sources]
         if len(bindings) != len(set(bindings)):
             raise InvalidBundle(f"duplicate source binding: {field}")
@@ -59,15 +70,26 @@ def normalize(
 
 
 def _closure(
-    path: str, document: dict[str, Any], hashes: dict[str, str], by_hash: dict[str, str], issues: list[str], omissions: list[DerivedOmission]
+    path: str,
+    document: dict[str, Any],
+    hashes: dict[str, str],
+    by_hash: dict[str, str],
+    issues: list[str],
+    omissions: list[DerivedOmission],
 ) -> None:
     for artifact in document.get("artifacts", []):
+        if not isinstance(artifact["sha256"], str) or not re.fullmatch(r"[a-f0-9]{64}", artifact["sha256"]):
+            raise InvalidBundle("invalid artifact digest")
         child = safe_path(artifact["filename"])
         target = (PurePosixPath(path).parent / child).as_posix()
         if target not in hashes:
-            derived = (child.name == "replay.mp4" and "tracking_run" in document) or (child.name == "trajectories.csv" and "reconstruction_run" in document)
+            derived = (child.name == "replay.mp4" and "tracking_run" in document) or (
+                child.name == "trajectories.csv" and "reconstruction_run" in document
+            )
             if derived and len(child.parts) == 1:
-                omissions.append(DerivedOmission(artifact_path=target, sha256=artifact["sha256"], manifest_sha256=hashes[path]))
+                omissions.append(
+                    DerivedOmission(artifact_path=target, sha256=artifact["sha256"], manifest_sha256=hashes[path])
+                )
             else:
                 issues.append(f"missing upstream artifact: {target}")
         elif hashes[target] != artifact["sha256"]:
@@ -100,6 +122,8 @@ def _source(
     issues: list[str],
 ) -> list[NormalizedRecord]:
     records: list[NormalizedRecord] = []
+    chain_hashes: list[str] = []
+    movement: dict[str, Any] = {}
     prefix = (envelope.producer, envelope.case_id, source.view_id, source.tracking_run, source.track_revision)
 
     def track(track_id: int) -> str:
@@ -134,6 +158,28 @@ def _source(
                 kind=kind,
                 view_id=source.view_id,
                 artifact_path=path,
+                data=payload(
+                    kind,
+                    original,
+                    source,
+                    envelope.producer,
+                    envelope.case_id,
+                    movement,
+                    track,
+                    {
+                        entry["event_id"]: entry["order_unresolved_with"]
+                        for doc in parsed.get(str(PurePosixPath(source.movement_manifest).parent / "sequence.json"), [])
+                        for entry in doc["entries"]
+                    },
+                    parsed.get(str(PurePosixPath(source.incident_manifest).parent / "assessments.jsonl"), []),
+                    chain_hashes,
+                    {
+                        r["source_frame"]: r["source_time"]
+                        for r in parsed.get(
+                            str(PurePosixPath(source.reconstruction_manifest).parent / "source_frames.jsonl"), []
+                        )
+                    },
+                ),
                 original=original,
                 **values,
             )
@@ -231,7 +277,11 @@ def _source(
             if not overlay:
                 issues.append("source frame/time unresolved")
             return {"needs_review": True}
-        return {"source_frame": frame, "source_time": row["source_time"], "timestamp_provenance": row["timestamp_source"]}
+        return {
+            "source_frame": frame,
+            "source_time": row["source_time"],
+            "timestamp_provenance": row["timestamp_source"],
+        }
 
     add("source_binding", source.reconstruction_manifest, source.model_dump(mode="json"), "binding")
     for row in timestamps:
@@ -312,6 +362,7 @@ def _source(
         if revision_hash in visited:
             raise InvalidBundle("cyclic review chain")
         visited.add(revision_hash)
+        chain_hashes.append(revision_hash)
         candidates = [p for p, h in hashes.items() if h == revision_hash]
         if not candidates:
             issues.append("missing upstream review revision")
