@@ -29,6 +29,14 @@ def _frame_at(time: float, records: tuple[NormalizedRecord, ...], decision: Impo
     return table[-1][1] if table and time == table[-1][0] else None
 
 
+def _party_code(name: str, facts: OverviewFacts | None, view_sha: str) -> str | None:
+    parties = [p for p in facts.parties if p.view_id == view_sha and p.description == name] if facts else []
+    if len(parties) != 1 or not parties[0].party_code:
+        return None
+    value = parties[0].party_code
+    return value if facts and sum(p.view_id == view_sha and p.party_code == value for p in facts.parties) == 1 else None
+
+
 CONTACT_KINDS = {"vehicle_contact_vehicle", "vehicle_struck_pedestrian", "contact_other"}
 
 
@@ -139,14 +147,28 @@ def compare_view(
                     and (a.contact_interval_start_seconds, a.contact_interval_end_seconds) != (low, high)
                 )
                 if not agrees and other_times:
+                    other_contacts = [c for c in contacts if c.timestamp_seconds in other_times]
+                    same_pair = False
+                    if len(assessments) == 1 and len(other_contacts) == 1:
+                        other = other_contacts[0]
+                        codes = (
+                            _party_code(other.subject, facts, view_sha),
+                            _party_code(other.other_party, facts, view_sha),
+                        )
+                        same_pair = all(codes) and set(codes) == {mappings[ref] for ref in row.track_refs}
+                    reason = (
+                        "video analysis contact times are inconsistent"
+                        if same_pair
+                        else "video analysis reports another contact at "
+                        + ", ".join(f"{t:g} s" for t in other_times)
+                        + "; which contact this is cannot be determined"
+                    )
                     output.append(
                         replace(
                             result(
                                 row,
                                 "cannot_compare",
-                                "video analysis reports another contact at "
-                                + ", ".join(f"{t:g} s" for t in other_times)
-                                + "; which contact this is cannot be determined",
+                                reason,
                             ),
                             video_times=times + tuple(other_times),
                         )
@@ -220,18 +242,10 @@ def compare_view(
         ):
             contact = matching[0]
 
-            def code(name: str) -> str | None:
-                parties = [p for p in facts.parties if p.view_id == view_sha and p.description == name] if facts else []
-                if len(parties) != 1 or not parties[0].party_code:
-                    return None
-                value = parties[0].party_code
-                return (
-                    value
-                    if facts and sum(p.view_id == view_sha and p.party_code == value for p in facts.parties) == 1
-                    else None
-                )
-
-            video_pair = [code(contact.subject), code(contact.other_party)]
+            video_pair = [
+                _party_code(contact.subject, facts, view_sha),
+                _party_code(contact.other_party, facts, view_sha),
+            ]
             known = all(video_pair) and len(set(video_pair)) == 2
             base = replace(
                 base,

@@ -878,3 +878,37 @@ def test_party_match_uses_agreed_interval_or_frame(mode: str, expected: str) -> 
         assert names[0] in row.reason and names[1] in row.reason
         if mode == "wrong_pair":
             assert names[2] in row.reason
+
+
+@pytest.mark.parametrize("same_pair", [True, False])
+def test_same_pair_inconsistent_video_times_are_worded_explicitly(same_pair: bool) -> None:
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    e = next(r for r in d.records if isinstance(r.data, EventFields) and r.data.event_type == "collision_candidate")
+    names = ("Synthetic white Toyota sedan", "Synthetic blue Ford SUV", "Synthetic red Honda coupe")
+    parties = [
+        PartyFact(description=n, party_code=c, view_id=s.original_video_sha256, timestamp_seconds=0.0, confidence=1.0)
+        for n, c in zip(names, ("P1", "P2", "P3"), strict=True)
+    ]
+    contact = CollisionObservation(
+        kind="vehicle_contact_vehicle",
+        subject=names[0],
+        other_party=names[1] if same_pair else names[2],
+        injury_grade="unknown",
+        timestamp_seconds=6.08,
+        view_id=s.original_video_sha256,
+        confidence=1.0,
+    )
+    f = saved_facts(s.original_video_sha256, 4.0, 5.0).model_copy(
+        update={"parties": parties, "collision_observations": [contact]}
+    )
+    row = compare_view(d, s.view_id, s.original_video_sha256, f, dict(zip(e.track_refs, ("P1", "P2"), strict=True)))[0]
+    assert row.state == "cannot_compare"
+    assert row.video_times == (4.0, 5.0, 6.08)
+    if same_pair:
+        assert row.reason == "video analysis contact times are inconsistent"
+    else:
+        assert row.reason.startswith("video analysis reports another contact at")
