@@ -4,6 +4,7 @@ import pytest
 
 from evidence_import_fixtures import FIXTURES
 from incident_report.evidence_import import inspect_bundle
+from incident_report.evidence_import.models import NormalizedRecord
 from incident_report.evidence_import.payloads import EventFields
 from incident_report.facts import CollisionObservation, IncidentAssessment, OverviewFacts, PartyFact
 
@@ -142,3 +143,80 @@ def test_party_pair_uses_explicit_codes(other: str, expected: str) -> None:
     row = next(r for r in rows if r.item == "Parties in contact" and r.producer_time == 6.08)
     assert row.state == expected
     assert row.video_times == (6.08,)
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("moving", "disagree_motion"),
+        ("stopped_in_lane", "agree"),
+        ("parked_at_kerb", "agree"),
+        ("reversing", "cannot_compare"),
+        ("unknown", "cannot_compare"),
+    ],
+)
+def test_motion_at_fact_timestamp_and_missing_precontact(value: str, expected: str) -> None:
+    from incident_report.facts import StructuredFact
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    event = next(e for e in d.records if isinstance(e.data, EventFields) and e.data.event_type == "collision_candidate")
+    ref = event.track_refs[0]
+
+    def movement(kind: str, t: float, key: str) -> NormalizedRecord:
+        return event.model_copy(
+            update={
+                "record_id": key,
+                "producer_status": "PROPOSED_BY_SYSTEM",
+                "track_refs": (ref,),
+                "source_time": t,
+                "source_frame": int(t * 25),
+                "data": event.data.model_copy(update={"event_id": key, "event_type": kind, "peak_time": t}),
+            }
+        )
+
+    # Explicit synthetic normalized saved-import variation, no producer fixture edited.
+    records = tuple(
+        r for r in d.records if not isinstance(r.data, EventFields) or r.data.event_type == "collision_candidate"
+    )
+    d = d.model_copy(
+        update={
+            "records": records
+            + (
+                movement("first_observed", 6.08, "first"),
+                movement("stop", 6.08, "stop"),
+                movement("start", 8.0, "start"),
+                movement("last_observed", 10.0, "last"),
+            )
+        }
+    )
+    f = saved_facts(s.original_video_sha256, 6.0, 6.2)
+    party = PartyFact(
+        description="Synthetic white Toyota sedan",
+        party_code="P1",
+        view_id=s.original_video_sha256,
+        timestamp_seconds=0.0,
+        confidence=1.0,
+    )
+    fact = StructuredFact(
+        subject=party.description,
+        field="motion_state_before_contact",
+        value=value,
+        other_party="",
+        view_id=s.original_video_sha256,
+        timestamp_seconds=7.0,
+        confidence=1.0,
+    )
+    f = f.model_copy(update={"parties": [party], "structured_facts": [fact]})
+    maps = dict(zip(event.track_refs, ("P1", "P2"), strict=True))
+    rows = compare_view(d, s.view_id, s.original_video_sha256, f, maps)
+    motion = next(r for r in rows if r.item == "Motion")
+    assert motion.state == expected
+    assert motion.video_times == (7.0,)
+    assert motion.producer_time == 6.08 and motion.producer_frame == 152
+    assert any(r.item == "Pre-contact context" and "Synthetic white Toyota sedan" in r.reason for r in rows)
+    later = fact.model_copy(update={"timestamp_seconds": 11.0})
+    rows = compare_view(d, s.view_id, s.original_video_sha256, f.model_copy(update={"structured_facts": [later]}), maps)
+    assert next(r for r in rows if r.item == "Motion").state == "cannot_compare"

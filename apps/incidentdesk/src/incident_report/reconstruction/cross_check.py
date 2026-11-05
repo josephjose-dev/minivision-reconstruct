@@ -69,7 +69,9 @@ def compare_view(
         )
 
     if decision.missing_inputs:
-        return (result(None, "reconstruction_unavailable", "; ".join(decision.missing_inputs)),)
+        return (result(None, "reconstruction_unavailable", "; ".join(decision.missing_inputs)),) + _motion_context(
+            decision, source_view, view_sha, facts, mappings, rows
+        )
     observed = bool(assessment and assessment.contact_state == "contact_observed") or bool(contacts)
     if not rows:
         return (
@@ -142,4 +144,121 @@ def compare_view(
                 video_times=(contact.timestamp_seconds,),
             )
         output.append(replace(base, item="Parties in contact"))
+    return tuple(output) + _motion_context(decision, source_view, view_sha, facts, mappings, rows)
+
+
+MOTION = {"moving": "moving", "stopped_in_lane": "stopped", "parked_at_kerb": "stopped"}
+
+
+def _motion_context(
+    decision: ImportDecision,
+    source_view: str,
+    view_sha: str,
+    facts: OverviewFacts | None,
+    mappings: dict[str, str],
+    candidates: list[TimelineRow],
+) -> tuple[Comparison, ...]:
+    if facts is None:
+        return ()
+    kinds = {
+        r.record_id: r.data.event_type
+        for r in decision.records
+        if r.view_id == source_view and isinstance(r.data, EventFields)
+    }
+    movements = [
+        r
+        for g in timeline_groups(decision, source_view, view_sha, ())
+        for r in g.rows
+        if kinds.get(r.key) in {"first_observed", "last_observed", "stop", "start"}
+        and not r.rejected
+        and r.source_time is not None
+        and r.source_frame is not None
+    ]
+    contact_refs = {ref for r in candidates if not r.rejected for ref in r.track_refs}
+    output = []
+    for party in facts.parties:
+        if party.view_id != view_sha or not party.party_code:
+            continue
+        if sum(p.view_id == view_sha and p.party_code == party.party_code for p in facts.parties) != 1:
+            continue
+        refs = [ref for ref in contact_refs if mappings.get(ref) == party.party_code]
+        events = [r for r in movements if len(refs) == 1 and refs[0] in r.track_refs]
+        first = [r for r in events if kinds[r.key] == "first_observed"]
+        last = [r for r in events if kinds[r.key] == "last_observed"]
+        contacts = [
+            r
+            for r in candidates
+            if not r.rejected and any(ref in r.track_refs for ref in refs) and r.source_time is not None
+        ]
+        late = next(
+            (
+                r
+                for r in first
+                if any(
+                    r.source_time is not None and c.source_time is not None and r.source_time >= c.source_time
+                    for c in contacts
+                )
+            ),
+            None,
+        )
+        missing = any("calibration" in c or "timestamp" in c for c in decision.missing_inputs)
+        if refs and (late or missing):
+            citation = late or (contacts[0] if contacts else None)
+            output.append(
+                Comparison(
+                    "Pre-contact context",
+                    "cannot_compare",
+                    f"Reconstruction lacks pre-contact context for {party.description}"
+                    + (": " + "; ".join(decision.missing_inputs) if missing else ": first seen at or after contact"),
+                    view_sha,
+                    citation.source_time if citation else None,
+                    citation.source_frame if citation else None,
+                    tuple(c.source_time for c in contacts if c.source_time is not None),
+                    citation.review_status if citation else "Review status unavailable",
+                )
+            )
+        for fact in facts.structured_facts:
+            if (
+                fact.view_id != view_sha
+                or fact.subject != party.description
+                or fact.field != "motion_state_before_contact"
+            ):
+                continue
+            time = fact.timestamp_seconds
+            boundaries = (
+                len(first) == 1
+                and len(last) == 1
+                and first[0].source_time is not None
+                and last[0].source_time is not None
+                and first[0].source_time <= time <= last[0].source_time
+            )
+            transitions = [
+                r
+                for r in events
+                if kinds[r.key] in {"stop", "start"} and r.source_time is not None and r.source_time <= time
+            ]
+            transitions.sort(key=lambda r: r.source_time or 0)
+            cited = transitions[-1] if transitions else None
+            states = {kinds[r.key] for r in transitions if cited and r.source_time == cited.source_time}
+            actual = ("stopped" if kinds[cited.key] == "stop" else "moving") if cited and len(states) == 1 else None
+            valid = (
+                boundaries
+                and not decision.missing_inputs
+                and len(refs) == 1
+                and actual is not None
+                and fact.value in MOTION
+            )
+            state = ("agree" if actual == MOTION.get(fact.value) else "disagree_motion") if valid else "cannot_compare"
+            output.append(
+                Comparison(
+                    "Motion",
+                    state,
+                    f"{party.description}: reconstruction {actual or 'unknown'}; video analysis {fact.value}",
+                    view_sha,
+                    cited.source_time if cited else None,
+                    cited.source_frame if cited else None,
+                    (time,),
+                    cited.review_status if cited else "Review status unavailable",
+                )
+            )
     return tuple(output)
