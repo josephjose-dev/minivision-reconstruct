@@ -8,6 +8,7 @@ from incident_report.domain import Report
 from .alignment import RELIABILITIES, combined_groups
 from .alignment import history as alignment_history
 from .config import ReconstructionSettings
+from .cross_check import Comparison, compare_view
 from .mapping import Mapping, TrackOption, mapping_history, track_options
 from .paths import list_bundles
 from .store import Attachment, Workspace
@@ -23,6 +24,7 @@ class ViewPanel:
     tool_selections: tuple[str, ...] = ()
     tracks: tuple[TrackOption, ...] = ()
     stale_mappings: tuple[Mapping, ...] = ()
+    comparisons: tuple[Comparison, ...] = ()
 
 
 def context(workspace: Workspace, report: Report, settings: ReconstructionSettings) -> dict[str, Any]:
@@ -39,6 +41,8 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
                 notices.append(f"Imported revision {previous.import_id}: {workspace.attachment_note(previous)}")
         selections = []
         tracks: list[TrackOption] = []
+        comparisons: list[Comparison] = []
+        history = mapping_history(workspace, report.run_id)
         for link in links:
             decision = workspace.decision(link.import_id)
             if decision.envelope:
@@ -48,6 +52,19 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
                 )
             options = track_options(workspace, report.run_id, link)
             tracks.extend(options)
+            latest = {
+                m.track_ref: m
+                for m in history
+                if not m.stale and m.import_id == link.import_id and m.view_sha256 == view.sha256
+            }
+            valid_refs = {o.track_ref for o in options}
+            party_codes = {code for o in options for code, _ in o.parties}
+            mappings = {
+                ref: m.party_code
+                for ref, m in latest.items()
+                if ref in valid_refs and m.action == "map" and m.party_code in party_codes and m.party_code is not None
+            }
+            comparisons.extend(compare_view(decision, link.source_view_id, view.sha256, report.facts, mappings))
             labels = {o.track_ref: o.label for o in options}
             for group in timeline_groups(decision, link.source_view_id, view.sha256, ()):
                 groups.append(
@@ -82,11 +99,27 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
         )
         stale = tuple(m for m in mapping_history(workspace, report.run_id) if m.stale and m.view_sha256 == view.sha256)
         panels[view.sha256] = ViewPanel(
-            tuple(groups), tuple(dict.fromkeys(notices)), links, tuple(selections), tuple(tracks), stale
+            tuple(groups),
+            tuple(dict.fromkeys(notices)),
+            links,
+            tuple(selections),
+            tuple(tracks),
+            stale,
+            tuple(comparisons),
         )
     alignments = alignment_history(workspace, report.run_id)
     return {
         "reconstruction": panels,
+        "reconstruction_disagreements": {
+            view: tuple(
+                dict.fromkeys(
+                    r.item
+                    for r in panel.comparisons
+                    if r.state in {"disagree_time", "disagree_parties", "disagree_motion", "tracker_miss", "model_miss"}
+                )
+            )
+            for view, panel in panels.items()
+        },
         "reconstruction_tools": tool_links(),
         "reconstruction_alignments": alignments,
         "reconstruction_clocks": RELIABILITIES,

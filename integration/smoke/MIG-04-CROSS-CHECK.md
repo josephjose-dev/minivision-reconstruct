@@ -1,0 +1,23 @@
+# MIG-04 cross-check browser smoke (Claude reviewer)
+
+Use the MIG-03 development startup/attachment checklist in docs/migration/MIG-03_WORK_LOG.md.
+No producer fixture edits or live model calls. Retain visible synthetic labels.
+
+1. With INCIDENTDESK_RECONSTRUCTION=false, confirm no cross-check or notice appears.
+2. Enable the flag. Attach a current export to its SHA-bound report view; open the review page.
+   Verify one collapsed Reconstruction cross-check block per attached view, native view/time/frame,
+   producer review badges, and explicit unavailable citations (never substituted replay times).
+3. Record reviewer track-to-party mappings. Use labelled synthetic saved facts to exercise agreement,
+   timing disagreement (signed seconds), conflicting parties, motion disagreement, tracker/model miss,
+   rejected/unknown corrected time, and missing calibration/timestamp inputs. Show both source values.
+4. Verify the notice near Fault Status only lists disagreements/misses and names the view.
+   Verify existing status, colour, fines, storyline, summary and Q&A remain identical.
+5. Unmap/cannot-determine a track. Verify Cannot compare. Attach a newer export; prior mappings must
+   need re-confirmation, old comparisons must disappear. Cameras with unknown alignment stay separate.
+6. Open print preview / save PDF. Verify cross-check and notice are excluded. Compare the resulting
+   rendered pages to flag-off output. The app serves HTML at /print and has no PDF-byte endpoint;
+   automated tests compare full print response bytes, not a claimed browser PDF byte comparison.
+7. Confirm existing Gemini recovery trigger/recovery notes remain visible beside the view evidence.
+   Record screenshots, incident/import identifiers, browser/codec and any unexercised step.
+
+Claude owns manual browser smoke and independent critical acceptance. No merge/push/tag by Codex.

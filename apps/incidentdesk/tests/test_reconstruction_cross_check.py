@@ -1,5 +1,7 @@
 """MIG-04 synthetic saved facts; these are test fixtures, never Gemini output."""
 
+from pathlib import Path
+
 import pytest
 
 from evidence_import_fixtures import FIXTURES
@@ -220,3 +222,283 @@ def test_motion_at_fact_timestamp_and_missing_precontact(value: str, expected: s
     later = fact.model_copy(update={"timestamp_seconds": 11.0})
     rows = compare_view(d, s.view_id, s.original_video_sha256, f.model_copy(update={"structured_facts": [later]}), maps)
     assert next(r for r in rows if r.item == "Motion").state == "cannot_compare"
+    # An unresolved corrected transition is a barrier, never silently discarded.
+    unknown = movement("stop", 7.0, "unknown-stop").model_copy(
+        update={"producer_status": "MODIFIED_BY_REVIEWER", "source_time": None, "source_frame": None}
+    )
+    uncertain = d.model_copy(update={"records": d.records + (unknown,)})
+    rows = compare_view(uncertain, s.view_id, s.original_video_sha256, f, maps)
+    assert next(r for r in rows if r.item == "Motion").state == "cannot_compare"
+    # Gemini can report the missed contact even when the tracker proposes none.
+    no_candidates = d.model_copy(
+        update={
+            "records": tuple(
+                r
+                for r in d.records
+                if not isinstance(r.data, EventFields) or r.data.event_type != "collision_candidate"
+            )
+        }
+    )
+    contact = CollisionObservation(
+        kind="contact_other",
+        subject=party.description,
+        other_party="barrier",
+        injury_grade="unknown",
+        timestamp_seconds=6.08,
+        view_id=s.original_video_sha256,
+        confidence=1.0,
+    )
+    missed = f.model_copy(update={"collision_observations": [contact]})
+    rows = compare_view(no_candidates, s.view_id, s.original_video_sha256, missed, maps)
+    assert any(r.item == "Pre-contact context" for r in rows)
+
+
+def test_cross_check_context_render_is_offline_escaped_and_print_invariant(
+    database_url: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import json
+    import socket
+    import uuid
+
+    import psycopg
+
+    from incident_report.domain import Report, ReportView, Role
+    from incident_report.reconstruction.config import ReconstructionSettings
+    from incident_report.reconstruction.mapping import map_track
+    from incident_report.reconstruction.presentation import context
+    from incident_report.reconstruction.store import Workspace
+    from incident_report.web.templating import build_environment
+
+    d = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    f = saved_facts(s.original_video_sha256, 1.0, 2.0)
+    f = f.model_copy(
+        update={
+            "parties": [
+                PartyFact(
+                    description=n, party_code=c, view_id=s.original_video_sha256, timestamp_seconds=0.0, confidence=1.0
+                )
+                for n, c in [
+                    ("Synthetic <script>alert(1)</script> white Toyota sedan", "P1"),
+                    ("Synthetic blue Ford SUV", "P2"),
+                ]
+            ]
+        }
+    )
+    report = Report(
+        run_id=uuid.uuid4(),
+        input_hash="a" * 64,
+        prompt_version="synthetic",
+        provenance="Synthetic test fixture, not Gemini output",
+        summary="Synthetic test fixture",
+        views=(
+            ReportView(
+                filename="fixture.avi",
+                label="Front",
+                sha256=s.original_video_sha256,
+                role=Role.EXTERIOR,
+                acquisition_method=None,
+            ),
+        ),
+        facts=f,
+    )
+    from incident_report.fines import Fine, FinesTable
+    from incident_report.rules import evaluate_situation
+    from incident_report.rules.models import PartyViolation
+    from test_core_fault_rules import lane_situation
+
+    situation = lane_situation()
+    fine = FinesTable.default().get("below_minimum_speed")
+    assert isinstance(fine, Fine)
+    violation = PartyViolation(
+        party_description="Synthetic white Toyota sedan",
+        rule_id="synthetic fixture",
+        item_number=fine.item_number,
+        name_en=fine.en,
+        aed=fine.aed,
+        black_points=fine.black_points,
+        impound_days=fine.impound_days,
+        source_url=fine.source_url,
+        status=fine.status,
+        cited_facts=(f.parties[0],),
+    )
+    report = report.model_copy(update={"parties": evaluate_situation(situation), "violations": (violation,)})
+    assert report.parties and report.violations
+    saved = report.model_dump_json()
+    settings = ReconstructionSettings(True, FIXTURES)
+    env = build_environment()
+    template = env.get_template("report.html")
+
+    def render(values: dict[str, object], printing: bool = False) -> str:
+        return template.render(report=report, print_view=printing, csrf_token=uuid.uuid4().hex, **values)
+
+    before = render({}, True)
+    with psycopg.connect(database_url) as conn:
+        conn.execute(
+            "INSERT INTO runs(run_id,origin,created_at,input_hash,report,status,total_latency_ms) VALUES (%s,'replay',now(),%s,%s::jsonb,'succeeded',0)",
+            (report.run_id, report.input_hash, saved),
+        )
+        conn.commit()
+        w = Workspace(conn, settings)
+        link = w.attach(report.run_id, "mig02-multi-review", "synthetic reviewer")[0]
+        event = next(
+            e for e in d.records if isinstance(e.data, EventFields) and e.data.event_type == "collision_candidate"
+        )
+        for ref, code in zip(event.track_refs, ("P1", "P2"), strict=True):
+            map_track(
+                w,
+                report.run_id,
+                link.import_id,
+                s.original_video_sha256,
+                ref,
+                "map",
+                code,
+                "synthetic reviewer",
+                "synthetic fixture identity",
+            )
+
+        def forbidden(*args: object, **kwargs: object) -> None:
+            raise AssertionError("network attempted during cross-check render")
+
+        monkeypatch.setattr(socket, "create_connection", forbidden)
+        monkeypatch.setattr(socket.socket, "connect", forbidden)
+        values = context(w, report, settings)
+        panel = values["reconstruction"][s.original_video_sha256]
+        assert any(row.state == "disagree_time" for row in panel.comparisons)
+        html = render(values)
+        assert "<summary>Reconstruction cross-check</summary>" in html
+        assert "<details open><summary>Reconstruction cross-check" not in html
+        assert "Reconstruction disagrees with the video analysis on" in html
+        assert "Disagrees (time)" in html and "Source frame 152" in html
+        assert "<script>alert(1)</script>" not in html
+        assert render(values, True) == before
+        assert context(w, report, ReconstructionSettings(False, FIXTURES)) == {}
+        # A later attachment supersedes the old import; old associations are stale.
+        import shutil
+
+        root = tmp_path / "exports"
+        shutil.copytree(FIXTURES / "mig02-multi-review", root / "new")
+        path = root / "new/bundle.json"
+        envelope = json.loads(path.read_bytes())
+        envelope["created_at"] = "2026-11-05T12:00:00Z"
+        path.write_text(json.dumps(envelope))
+        newer_settings = ReconstructionSettings(True, root)
+        newer = Workspace(conn, newer_settings)
+        newer.attach(report.run_id, "new", "synthetic reviewer")
+        current_panel = context(newer, report, newer_settings)["reconstruction"][s.original_video_sha256]
+        assert current_panel.stale_mappings
+        assert all(r.state == "cannot_compare" for r in current_panel.comparisons)
+        assert report.model_dump_json() == saved
+        assert json.loads(saved)["facts"]["incident_assessments"][0]["assessment_note"].startswith("Synthetic")
+
+
+def test_fault_inputs_cannot_read_cross_check_or_import_tables() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "src/incident_report"
+    paths = list((root / "rules").rglob("*.py")) + list((root / "ai").rglob("*.py"))
+    paths += [root / "questions.py", root / "storyline.py"]
+    paths += list((root / "fines").rglob("*.py"))
+    paths += [p for p in root.rglob("*.py") if "fine" in p.name]
+    forbidden = (
+        "reconstruction",
+        "cross_check",
+        "evidence_import",
+        "incident_evidence_imports",
+        "track_party_mappings",
+        "view_time_alignments",
+    )
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert not any(name in text for name in forbidden), str(path)
+
+
+def test_obscured_contact_does_not_become_tracker_miss() -> None:
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / "mig02-001-05-near-miss-crossing")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    f = saved_facts(s.original_video_sha256, 6.0, 6.2)
+    a = f.incident_assessments[0].model_copy(update={"contact_state": "contact_possible_obscured"})
+    c = CollisionObservation(
+        kind="contact_other",
+        subject="Synthetic white Toyota sedan",
+        other_party="barrier",
+        injury_grade="unknown",
+        timestamp_seconds=6.08,
+        view_id=s.original_video_sha256,
+        confidence=1.0,
+    )
+    f = f.model_copy(update={"incident_assessments": [a], "collision_observations": [c]})
+    assert compare_view(d, s.view_id, s.original_video_sha256, f, {})[0].state == "cannot_compare"
+
+
+@pytest.mark.parametrize(
+    "status,review,expected",
+    [
+        ("REJECTED_BY_REVIEWER", False, "cannot_compare"),
+        ("CONFIRMED_BY_REVIEWER", True, "cannot_compare"),
+        ("CONFIRMED_BY_REVIEWER", False, "agree"),
+    ],
+)
+def test_effective_candidate_and_frame_containment(status: str, review: bool, expected: str) -> None:
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    e = next(r for r in d.records if isinstance(r.data, EventFields) and r.data.event_type == "collision_candidate")
+    d = d.model_copy(
+        update={
+            "records": tuple(
+                r.model_copy(update={"producer_status": status, "needs_review": review})
+                if r.record_id == e.record_id
+                else r
+                for r in d.records
+            )
+        }
+    )
+    f = saved_facts(s.original_video_sha256, 6.0, 6.2)
+    c = CollisionObservation(
+        kind="contact_other",
+        subject="Synthetic white Toyota sedan",
+        other_party="barrier",
+        injury_grade="unknown",
+        timestamp_seconds=6.081,
+        view_id=s.original_video_sha256,
+        confidence=1.0,
+    )
+    f = f.model_copy(update={"incident_assessments": [], "collision_observations": [c]})
+    maps = dict(zip(e.track_refs, ("P1", "P2"), strict=True))
+    row = compare_view(d, s.view_id, s.original_video_sha256, f, maps)[0]
+    assert row.state == expected
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("mig02-001-01-rear-end", "cannot_compare"),
+        ("mig02-001-05-near-miss-crossing", "tracker_miss"),
+        ("mig02-001-06-normal-crossing", "reconstruction_unavailable"),
+        ("mig02-001-07-occluded-impact", "tracker_miss"),
+        ("mig02-multi-review", "cannot_compare"),
+        ("mig02-relative", "tracker_miss"),
+    ],
+)
+def test_scripted_exports_with_labelled_synthetic_saved_facts(name: str, expected: str) -> None:
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / name)
+    assert d.envelope
+    s = d.envelope.sources[0]
+    f = saved_facts(s.original_video_sha256, 6.0, 6.2)
+    assert compare_view(d, s.view_id, s.original_video_sha256, f, {})[0].state == expected
+    other_view = f.model_copy(
+        update={"incident_assessments": [a.model_copy(update={"view_id": "b" * 64}) for a in f.incident_assessments]}
+    )
+    assert all(
+        r.state not in {"agree", "disagree_time", "tracker_miss"}
+        for r in compare_view(d, s.view_id, s.original_video_sha256, other_view, {})
+    )

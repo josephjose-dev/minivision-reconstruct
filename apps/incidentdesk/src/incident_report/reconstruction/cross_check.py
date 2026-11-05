@@ -8,6 +8,11 @@ from incident_report.facts import OverviewFacts
 
 from .timeline import TimelineRow, timeline_groups
 
+
+def _uncertain(row: TimelineRow, decision: ImportDecision) -> bool:
+    return row.needs_review or row.key in decision.quarantined_records
+
+
 CONTACT_KINDS = {"vehicle_contact_vehicle", "vehicle_struck_pedestrian", "contact_other"}
 
 
@@ -72,18 +77,25 @@ def compare_view(
         return (result(None, "reconstruction_unavailable", "; ".join(decision.missing_inputs)),) + _motion_context(
             decision, source_view, view_sha, facts, mappings, rows
         )
-    observed = bool(assessment and assessment.contact_state == "contact_observed") or bool(contacts)
+    uncertain_contact = bool(assessment and assessment.contact_state in {"contact_possible_obscured", "cannot_assess"})
+    observed = not uncertain_contact and (
+        bool(assessment and assessment.contact_state == "contact_observed") or bool(contacts)
+    )
     if not rows:
         return (
             result(
                 None, "tracker_miss" if observed else "cannot_compare", "No reconstruction collision candidate supplied"
             ),
-        )
+        ) + _motion_context(decision, source_view, view_sha, facts, mappings, rows)
     output = []
     for row in rows:
-        if row.rejected or row.source_time is None or row.source_frame is None:
+        if row.rejected or _uncertain(row, decision) or row.source_time is None or row.source_frame is None:
             output.append(result(row, "cannot_compare", "Candidate rejected or effective source time/frame unknown"))
-        elif len(row.track_refs) != 2 or any(ref not in mappings for ref in row.track_refs):
+        elif (
+            len(row.track_refs) != 2
+            or any(ref not in mappings for ref in row.track_refs)
+            or len({mappings.get(ref) for ref in row.track_refs}) != 2
+        ):
             output.append(result(row, "cannot_compare", "Tracks need same-view reviewer mappings"))
         elif assessment and assessment.contact_state in {"contact_possible_obscured", "cannot_assess"}:
             output.append(result(row, "cannot_compare", assessment.contact_state))
@@ -95,8 +107,29 @@ def compare_view(
                 agrees = low <= row.source_time <= high
                 delta = row.source_time - (low if row.source_time < low else high)
             else:
-                # Exact explicit timestamps only. No FPS-based tolerance is invented.
-                agrees = row.source_time in times
+                # Half-open intervals between consecutive saved presentation timestamps.
+                # No inferred FPS, nearest-frame tolerance, or extrapolation past the table.
+                table = sorted(
+                    (r.source_time, r.source_frame)
+                    for r in records
+                    if r.kind == "source_binding"
+                    and r.source_time is not None
+                    and r.source_frame is not None
+                    and not r.needs_review
+                    and r.record_id not in decision.quarantined_records
+                )
+
+                def frame_at(time: float, table: list[tuple[float, int]]) -> int | None:
+                    for (start, frame), (end, _) in zip(table, table[1:], strict=False):
+                        if start <= time < end:
+                            return frame
+                    return table[-1][1] if table and time == table[-1][0] else None
+
+                frames = [frame_at(t, table) for t in times]
+                if not any(frame is not None for frame in frames):
+                    output.append(result(row, "cannot_compare", "Video timestamp has no saved source-frame interval"))
+                    continue
+                agrees = row.source_frame in frames
                 delta = min((row.source_time - t for t in times), key=abs)
             output.append(
                 result(
@@ -116,6 +149,7 @@ def compare_view(
         pair = [mappings.get(ref) for ref in row.track_refs]
         if (
             not row.rejected
+            and not _uncertain(row, decision)
             and row.source_time is not None
             and len(pair) == 2
             and all(pair)
@@ -140,7 +174,17 @@ def compare_view(
             base = replace(
                 base,
                 state=("agree" if set(pair) == set(video_pair) else "disagree_parties") if known else "cannot_compare",
-                reason=f"Reconstruction party codes: {pair}; video analysis: {contact.subject} / {contact.other_party}",
+                reason="Reconstruction: "
+                + " / ".join(
+                    next(
+                        (p.description for p in facts.parties if p.view_id == view_sha and p.party_code == value),
+                        "Party description unavailable",
+                    )
+                    if facts
+                    else "Party description unavailable"
+                    for value in pair
+                )
+                + f"; video analysis: {contact.subject} / {contact.other_party}",
                 video_times=(contact.timestamp_seconds,),
             )
         output.append(replace(base, item="Parties in contact"))
@@ -165,23 +209,44 @@ def _motion_context(
         for r in decision.records
         if r.view_id == source_view and isinstance(r.data, EventFields)
     }
+    all_movements = [
+        r
+        for g in timeline_groups(decision, source_view, view_sha, ())
+        for r in g.rows
+        if kinds.get(r.key) in {"first_observed", "last_observed", "stop", "start"} and not r.rejected
+    ]
     movements = [
         r
         for g in timeline_groups(decision, source_view, view_sha, ())
         for r in g.rows
         if kinds.get(r.key) in {"first_observed", "last_observed", "stop", "start"}
         and not r.rejected
+        and not _uncertain(r, decision)
         and r.source_time is not None
         and r.source_frame is not None
     ]
-    contact_refs = {ref for r in candidates if not r.rejected for ref in r.track_refs}
+    contact_refs = {ref for r in candidates if not r.rejected and not _uncertain(r, decision) for ref in r.track_refs}
+    video_contacts = [c for c in facts.collision_observations if c.view_id == view_sha and c.kind in CONTACT_KINDS]
+    video_times = tuple(c.timestamp_seconds for c in video_contacts)
+    for a in facts.incident_assessments:
+        if (
+            a.view_id == view_sha
+            and a.contact_interval_start_seconds is not None
+            and a.contact_interval_end_seconds is not None
+        ):
+            video_times += (a.contact_interval_start_seconds, a.contact_interval_end_seconds)
+    contact_names = {n for c in video_contacts for n in (c.subject, c.other_party)}
     output = []
     for party in facts.parties:
         if party.view_id != view_sha or not party.party_code:
             continue
         if sum(p.view_id == view_sha and p.party_code == party.party_code for p in facts.parties) != 1:
             continue
-        refs = [ref for ref in contact_refs if mappings.get(ref) == party.party_code]
+        refs = [
+            ref
+            for ref, code in mappings.items()
+            if code == party.party_code and (ref in contact_refs or party.description in contact_names)
+        ]
         events = [r for r in movements if len(refs) == 1 and refs[0] in r.track_refs]
         first = [r for r in events if kinds[r.key] == "first_observed"]
         last = [r for r in events if kinds[r.key] == "last_observed"]
@@ -201,6 +266,10 @@ def _motion_context(
             ),
             None,
         )
+        video_late = next(
+            (r for r in first if r.source_time is not None and any(r.source_time >= t for t in video_times)), None
+        )
+        late = late or video_late
         missing = any("calibration" in c or "timestamp" in c for c in decision.missing_inputs)
         if refs and (late or missing):
             citation = late or (contacts[0] if contacts else None)
@@ -213,7 +282,7 @@ def _motion_context(
                     view_sha,
                     citation.source_time if citation else None,
                     citation.source_frame if citation else None,
-                    tuple(c.source_time for c in contacts if c.source_time is not None),
+                    video_times,
                     citation.review_status if citation else "Review status unavailable",
                 )
             )
@@ -241,8 +310,14 @@ def _motion_context(
             cited = transitions[-1] if transitions else None
             states = {kinds[r.key] for r in transitions if cited and r.source_time == cited.source_time}
             actual = ("stopped" if kinds[cited.key] == "stop" else "moving") if cited and len(states) == 1 else None
+            barrier = any(
+                any(ref in r.track_refs for ref in refs)
+                and (r.source_time is None or r.source_frame is None or _uncertain(r, decision))
+                for r in all_movements
+            )
             valid = (
-                boundaries
+                not barrier
+                and boundaries
                 and not decision.missing_inputs
                 and len(refs) == 1
                 and actual is not None
