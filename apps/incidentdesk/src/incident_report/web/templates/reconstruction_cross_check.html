@@ -1,6 +1,6 @@
 {% if panel.comparisons %}<details><summary>Reconstruction cross-check</summary>
 <p>Independent proposals compared on this view's native clock. These comparisons do not change Fault Status, fines or approval.</p>
-{% set labels = {'agree': 'Agrees', 'disagree_time': 'Disagrees (time)', 'disagree_parties': 'Disagrees (parties)', 'disagree_motion': 'Disagrees (motion)', 'tracker_miss': 'Reconstruction missed contact', 'model_miss': 'Video analysis did not report contact', 'cannot_compare': 'Cannot compare', 'reconstruction_unavailable': 'Reconstruction unavailable'} %}
+{% set labels = {'agree': 'Agrees', 'differs_no_interval': 'Times differ (no interval)', 'disagree_time': 'Disagrees (time)', 'disagree_parties': 'Disagrees (parties)', 'disagree_motion': 'Disagrees (motion)', 'tracker_miss': 'Reconstruction missed contact', 'model_miss': 'Video analysis did not report contact', 'cannot_compare': 'Cannot compare', 'reconstruction_unavailable': 'Reconstruction unavailable'} %}
 <ul>{% for row in panel.comparisons %}<li>
 <strong>{{ row.item }}: {{ labels.get(row.state, 'Cannot compare') }}</strong>. {{ row.reason }}
 <p>Reconstruction proposal — {{ row.review_status }}. View {{ row.view_id }}:

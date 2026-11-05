@@ -159,7 +159,13 @@ def compare_view(
             output.append(
                 result(
                     row,
-                    "agree" if agrees else "disagree_time",
+                    "agree"
+                    if agrees
+                    else (
+                        "disagree_time"
+                        if assessment and assessment.contact_interval_start_seconds is not None
+                        else "differs_no_interval"
+                    ),
                     "Reconstruction peak and video analysis contact times",
                     None if agrees else delta,
                 )

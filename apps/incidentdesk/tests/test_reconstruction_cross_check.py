@@ -377,6 +377,30 @@ def test_cross_check_context_render_is_offline_escaped_and_print_invariant(
         assert "Reconstruction disagrees with the video analysis on" in html
         assert "Disagrees (time)" in html and "Source frame 152" in html
         assert "<script>alert(1)</script>" not in html
+        coarse_contact = CollisionObservation(
+            kind="vehicle_contact_vehicle",
+            subject=f.parties[0].description,
+            other_party=f.parties[1].description,
+            injury_grade="unknown",
+            view_id=s.original_video_sha256,
+            timestamp_seconds=6.0,
+            confidence=1.0,
+        )
+        coarse = report.model_copy(
+            update={
+                "facts": f.model_copy(update={"incident_assessments": [], "collision_observations": [coarse_contact]})
+            }
+        )
+        coarse_values = context(w, coarse, settings)
+        assert coarse_values["reconstruction_disagreements"][s.original_video_sha256] == ()
+        assert any(
+            r.state == "differs_no_interval"
+            for r in coarse_values["reconstruction"][s.original_video_sha256].comparisons
+        )
+        ambiguous = report.model_copy(
+            update={"facts": f.model_copy(update={"collision_observations": [coarse_contact]})}
+        )
+        assert context(w, ambiguous, settings)["reconstruction_disagreements"][s.original_video_sha256] == ()
         assert render(values, True) == before
         assert context(w, report, ReconstructionSettings(False, FIXTURES)) == {}
         # A later attachment supersedes the old import; old associations are stale.
@@ -641,14 +665,16 @@ def test_second_contact_is_ambiguous_not_timing_disagreement(kind: str) -> None:
             }
         )
     else:
-        contact = CollisionObservation(
-            kind="contact_other" if kind == "two_within" else kind,
-            subject="Synthetic white Toyota sedan",
-            other_party="Synthetic blue Ford SUV",
-            injury_grade="unknown",
-            timestamp_seconds=6.08,
-            view_id=s.original_video_sha256,
-            confidence=1.0,
+        contact = CollisionObservation.model_validate(
+            dict(
+                kind="contact_other" if kind == "two_within" else kind,
+                subject="Synthetic white Toyota sedan",
+                other_party="Synthetic blue Ford SUV",
+                injury_grade="unknown",
+                timestamp_seconds=6.08,
+                view_id=s.original_video_sha256,
+                confidence=1.0,
+            )
         )
         observations = (
             [contact.model_copy(update={"timestamp_seconds": t}) for t in (4.2, 4.8)]
@@ -662,3 +688,44 @@ def test_second_contact_is_ambiguous_not_timing_disagreement(kind: str) -> None:
     assert "video analysis reports another contact at" in row.reason
     assert "which contact this is cannot be determined" in row.reason
     assert row.difference_seconds is None
+
+
+@pytest.mark.parametrize(
+    "time,expected,delta",
+    [(6.081, "agree", None), (6.0, "differs_no_interval", 0.08), (7.0, "differs_no_interval", -0.92)],
+)
+def test_no_interval_differences_are_informational(time: float, expected: str, delta: float | None) -> None:
+    from types import SimpleNamespace
+
+    from incident_report.reconstruction.cross_check import compare_view
+    from incident_report.web.templating import build_environment
+
+    d = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    e = next(r for r in d.records if isinstance(r.data, EventFields) and r.data.event_type == "collision_candidate")
+    contact = CollisionObservation(
+        kind="contact_other",
+        subject="Synthetic white Toyota sedan",
+        other_party="barrier",
+        injury_grade="unknown",
+        timestamp_seconds=time,
+        view_id=s.original_video_sha256,
+        confidence=1.0,
+    )
+    f = saved_facts(s.original_video_sha256, 6.0, 6.2).model_copy(
+        update={"incident_assessments": [], "collision_observations": [contact]}
+    )
+    row = compare_view(d, s.view_id, s.original_video_sha256, f, dict(zip(e.track_refs, ("P1", "P2"), strict=True)))[0]
+    assert row.state == expected
+    assert row.video_times == (time,) and row.producer_time == 6.08
+    if delta is not None:
+        assert row.difference_seconds == pytest.approx(delta)
+        html = (
+            build_environment()
+            .get_template("reconstruction_cross_check.html")
+            .render(
+                panel=SimpleNamespace(comparisons=[row]), view=SimpleNamespace(label="Front", filename="source.avi")
+            )
+        )
+        assert "Times differ (no interval)" in html
