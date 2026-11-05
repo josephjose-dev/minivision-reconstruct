@@ -48,7 +48,11 @@ def load_import(import_id: str, connection: Any) -> ImportDecision | LegacyImpor
 
 def import_bundle(directory: Path, connection: Any) -> ImportDecision:
     """Inspect and atomically append; byte-identical content returns its existing decision."""
-    decision = inspect_bundle(directory)
+    return persist_inspection(inspect_bundle(directory), connection)
+
+
+def persist_inspection(decision: ImportDecision, connection: Any) -> ImportDecision:
+    """Append the inspected snapshot, allowing callers to validate it before writes."""
     with connection.transaction():
         connection.execute("SELECT pg_advisory_xact_lock(%s)", (int(decision.import_id[:15], 16),))
         existing = load_import(decision.import_id, connection)

@@ -1,6 +1,6 @@
 {% if not print_view %}
 <div class="reconstruction-only">
-{% include "reconstruction_cross_check.html" %}
+{% if view is defined and view.role is defined and view.role.value != 'interior' %}{% include "reconstruction_cross_check.html" %}{% endif %}
 {% for notice in panel.notices %}<p role="note" class="alert">{{ notice }}</p>{% endfor %}
 {% for selection in panel.tool_selections %}
 <p><strong>Choose in the tool dropdown:</strong> <span>{{ selection }}</span> <button type="button" data-copy-reconstruction="{{ selection }}">Copy selection details</button></p>

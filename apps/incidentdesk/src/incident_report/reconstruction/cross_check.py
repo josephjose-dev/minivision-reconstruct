@@ -471,7 +471,9 @@ def _motion_context(
                     "Motion",
                     state,
                     (
-                        f"reconstruction has no observation of {party.description} at this time"
+                        f"track is not mapped to {party.description}"
+                        if party.party_code not in mappings.values()
+                        else f"reconstruction has no observation of {party.description} at this time"
                         if not coverage
                         else f"{party.description}: reconstruction {actual or 'unknown'}; video analysis {fact.value}"
                     ),

@@ -3,12 +3,13 @@
 from dataclasses import dataclass, replace
 from typing import Any
 
-from incident_report.domain import Report
+from incident_report.domain import Report, Role
 
 from .alignment import RELIABILITIES, combined_groups
 from .alignment import history as alignment_history
 from .config import ReconstructionSettings
 from .cross_check import Comparison, compare_view
+from .driver_context import driver_panels
 from .mapping import Mapping, TrackOption, mapping_history, track_options
 from .paths import list_bundles
 from .store import Attachment, Workspace
@@ -36,8 +37,16 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
         links = tuple(link for link in current if link.view_sha256 == view.sha256)
         groups = list(timeline_groups(None, "", view.sha256, report.storyline))
         notices = []
+        if view.role == Role.INTERIOR:
+            if links:
+                notices.append("reconstruction export attached to an interior view is ignored (road views only)")
+            links = ()
         for previous in workspace.history(report.run_id):
-            if previous.view_sha256 == view.sha256 and previous.superseded_by is not None:
+            if (
+                view.role != Role.INTERIOR
+                and previous.view_sha256 == view.sha256
+                and previous.superseded_by is not None
+            ):
                 notices.append(f"Imported revision {previous.import_id}: {workspace.attachment_note(previous)}")
         selections = []
         tracks: list[TrackOption] = []
@@ -97,7 +106,11 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
                 (r.source_time for r in group.rows if r.source_time is not None), default=float("inf")
             )
         )
-        stale = tuple(m for m in mapping_history(workspace, report.run_id) if m.stale and m.view_sha256 == view.sha256)
+        stale = (
+            tuple(m for m in mapping_history(workspace, report.run_id) if m.stale and m.view_sha256 == view.sha256)
+            if view.role != Role.INTERIOR
+            else ()
+        )
         panels[view.sha256] = ViewPanel(
             tuple(groups),
             tuple(dict.fromkeys(notices)),
@@ -109,6 +122,7 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
         )
     alignments = alignment_history(workspace, report.run_id)
     return {
+        "driver_context": driver_panels(report, panels, alignments) if settings.driver_context_enabled else {},
         "reconstruction": panels,
         "reconstruction_disagreements": {
             view: tuple(

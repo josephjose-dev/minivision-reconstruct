@@ -58,6 +58,7 @@ class TimelineRow:
     track_refs: tuple[str, ...]
     track_states: tuple[str, ...]
     order_unresolved_with: tuple[str, ...]
+    event_type: str = ""
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,7 @@ def timeline_groups(
     decision: ImportDecision | None, source_view: str, view_sha: str, app_moments: tuple[Any, ...]
 ) -> tuple[TimelineGroup, ...]:
     records = decision.records if decision else ()
+    quarantined = decision.quarantined_records if decision else ()
     overlays = {
         (r.artifact_path, r.data.target_id): r
         for r in records
@@ -105,7 +107,10 @@ def timeline_groups(
                 "Reconstruction proposal",
                 REVIEW_LABELS.get(record.producer_status or "", "Review status unavailable"),
                 record.producer_status == "REJECTED_BY_REVIEWER",
-                record.needs_review or (overlay.needs_review if overlay else False) or (modified and citation is None),
+                record.needs_review
+                or record.record_id in quarantined
+                or (overlay is not None and (overlay.needs_review or overlay.record_id in quarantined))
+                or (modified and citation is None),
                 event.peak_time,
                 review.modified_peak_time if review else None,
                 review.reviewer if review else None,
@@ -122,6 +127,7 @@ def timeline_groups(
                     )
                 ),
                 event.order_unresolved_with or (),
+                event.event_type,
             )
         )
     for index, moment in enumerate(app_moments):

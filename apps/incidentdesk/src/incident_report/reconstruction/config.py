@@ -10,6 +10,7 @@ from pathlib import Path
 class ReconstructionSettings:
     enabled: bool = False
     evidence_exports_root: Path | None = None
+    driver_context_enabled: bool = False
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "ReconstructionSettings":
@@ -18,4 +19,7 @@ class ReconstructionSettings:
         if flag not in ("", "0", "false", "1", "true"):
             raise ValueError("INCIDENTDESK_RECONSTRUCTION must be true or false")
         root = values.get("INCIDENTDESK_EVIDENCE_EXPORTS_ROOT", "").strip()
-        return cls(flag in ("1", "true"), Path(root) if root else None)
+        driver_flag = values.get("INCIDENTDESK_DRIVER_CONTEXT", "").lower().strip()
+        if driver_flag not in ("", "0", "false", "1", "true"):
+            raise ValueError("INCIDENTDESK_DRIVER_CONTEXT must be true or false")
+        return cls(flag in ("1", "true"), Path(root) if root else None, driver_flag in ("1", "true"))
