@@ -85,3 +85,37 @@ def test_same_view_overlap_keeps_native_order_without_cross_camera_label() -> No
     groups = combined_groups(panels, alignments)
     assert all(not group.order_unresolved for group in groups)
     assert [a.row.source_time for g in groups for a in g.rows if a.row.view_id == "a"] == [1.0, 2.0]
+
+
+@pytest.mark.parametrize("front_label", ["Front camera", "<b>Front camera</b>"])
+def test_alignment_history_uses_view_labels_with_hashes_secondary(front_label: str) -> None:
+    from html import escape
+    from types import SimpleNamespace
+
+    from incident_report.reconstruction.alignment import Alignment
+    from incident_report.web.templating import build_environment
+
+    front, rear = "a" * 64, "b" * 64
+    html = (
+        build_environment()
+        .get_template("reconstruction_alignment.html")
+        .render(
+            report=SimpleNamespace(
+                run_id="synthetic",
+                views=(
+                    SimpleNamespace(sha256=front, label=front_label, filename="front.mp4"),
+                    SimpleNamespace(sha256=rear, label=None, filename="rear.mp4"),
+                ),
+            ),
+            reconstruction_alignments=(
+                Alignment(front, rear, 1.0, 0.5, "reviewer_estimated", "reviewer", "synthetic"),
+            ),
+            reconstruction_clocks=("unknown", "reviewer_estimated", "shared_clock_documented"),
+            reconstruction_combined=(),
+        )
+    )
+    assert f"View {escape(front_label)}" in html
+    assert "to reference rear.mp4" in html
+    assert f'<span class="meta">({front[:12]})</span>' in html
+    assert f'<span class="meta">({rear[:12]})</span>' in html
+    assert "<b>Front camera</b>" not in html
