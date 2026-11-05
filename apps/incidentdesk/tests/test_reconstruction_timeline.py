@@ -253,6 +253,24 @@ def test_seek_controls_only_appear_with_the_existing_player() -> None:
     assert "interpolated at some point in this clip" in template.render(review_workspace=True, **values)
 
 
+def test_app_cited_moment_renders_without_an_empty_review_badge() -> None:
+    from types import SimpleNamespace
+
+    from incident_report.web.templating import build_environment
+
+    sha = "a" * 64
+    marker = SimpleNamespace(view_id=sha, timestamp_seconds=1.25, text="Synthetic app marker")
+    groups = timeline_groups(None, "", sha, (marker,))
+    html = (
+        build_environment()
+        .get_template("reconstruction_view.html")
+        .render(panel=SimpleNamespace(groups=groups, notices=(), links=()), print_view=False, review_workspace=True)
+    )
+    assert "App cited moment" in html and "Synthetic app marker" in html
+    assert 'data-seconds="1.25"' in html
+    assert "<strong>" not in html
+
+
 def test_unavailable_notice_is_excluded_from_browser_print() -> None:
     from html.parser import HTMLParser
     from types import SimpleNamespace

@@ -9,7 +9,7 @@
 {% for group in panel.groups %}
 <li>{% if group.order_unresolved %}<strong>Order not determined</strong>{% endif %}
 <ul>{% for item in group.rows %}<li>
-  <span class="meta">{{ item.origin }}</span> · <strong>{{ item.review_status }}</strong>
+  <span class="meta">{{ item.origin }}</span>{% if item.review_status %} · <strong>{{ item.review_status }}</strong>{% endif %}
   {% if item.rejected %}<s>{{ item.text }}</s>{% else %}{{ item.text }}{% endif %}
   {% if item.source_time is not none %}{% if review_workspace %}<button type="button" data-view-id="{{ item.view_id }}" data-seconds="{{ item.source_time }}">{{ '%.3f'|format(item.source_time) }} s</button>{% else %}<span class="citation">{{ '%.3f'|format(item.source_time) }} s</span>{% endif %}{% else %}<span>Source time unavailable</span>{% endif %}
   {% if item.source_frame is not none %}<span class="meta">Source frame {{ item.source_frame }}</span>{% endif %}
