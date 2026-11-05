@@ -151,7 +151,10 @@
 {% endif %}
 </section>
 
-<section data-report-section="parties" aria-label="Party findings">
+{% if reconstruction_disagreements and not print_view %}<div class="reconstruction-only">
+{% for view in report.views %}{% set items = reconstruction_disagreements.get(view.sha256) %}{% if items %}
+<p role="note" class="alert">{{ view.label or view.filename }}: Reconstruction disagrees with the video analysis on {{ items | join(', ') }}. Review before approving.</p>
+{% endif %}{% endfor %}</div>{% endif %}<section data-report-section="parties" aria-label="Party findings">
 <h2>Parties</h2>
 <aside aria-label="Fault status legend">
 <p>Police form meanings (Light Motor Vehicle Handbook F1, collision responsibilities, Step 3):
