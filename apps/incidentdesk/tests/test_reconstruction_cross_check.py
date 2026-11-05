@@ -581,3 +581,38 @@ def test_motion_needs_observation_and_no_gap(name: str, time: float, value: str,
     assert row.state == expected
     if expected == "cannot_compare":
         assert row.reason == f"reconstruction has no observation of {party.description} at this time"
+
+
+@pytest.mark.parametrize(
+    "contamination", [None, "incident_report.reconstruction", "incident_report.evidence_import", "incident_report.web"]
+)
+def test_fault_import_boundary_in_fresh_interpreter(contamination: str | None) -> None:
+    import subprocess
+    import sys
+
+    script = r"""
+import importlib
+import pkgutil
+import sys
+for name in ('rules', 'ai', 'fines'):
+    package = importlib.import_module('incident_report.' + name)
+    for module in pkgutil.walk_packages(package.__path__, package.__name__ + '.'):
+        importlib.import_module(module.name)
+for name in ('questions', 'storyline', 'decisions', 'checklist', 'agreement', 'guardrails'):
+    importlib.import_module('incident_report.' + name)
+if len(sys.argv) > 1:
+    importlib.import_module(sys.argv[1])  # explicit contamination self-check, no source edits
+prefixes = ('incident_report.reconstruction', 'incident_report.evidence_import', 'incident_report.web')
+forbidden = sorted(name for name in sys.modules if any(name == prefix or name.startswith(prefix + '.') for prefix in prefixes))
+assert not forbidden, 'Fault input import boundary breached: ' + repr(forbidden)
+"""
+    args = [sys.executable, "-I", "-c", script]
+    if contamination is not None:
+        args.append(contamination)
+    result = subprocess.run(args, capture_output=True, text=True, check=False, timeout=60)
+    if contamination is None:
+        assert result.returncode == 0, result.stdout + result.stderr
+    else:
+        assert result.returncode != 0
+        assert "Fault input import boundary breached" in result.stderr
+        assert contamination in result.stderr
