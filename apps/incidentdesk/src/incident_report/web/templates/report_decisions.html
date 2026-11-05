@@ -4,8 +4,7 @@
     by autoescape; it is never sent to the AI. The reasons are plain UI reasons, not RTA categories. -#}
 {% macro version_banner(decision) %}
 <div class="alert" data-decision-banner role="status">
-  <p><strong>Version {{ decision.version_number }}</strong>{% if decision.version_number != decision.latest_version %} (an earlier version, shown unchanged){% endif %}
-  · {% if decision.is_approved %}<span class="badge badge--verified">Approved</span> {{ decision.approved_at.strftime('%Y-%m-%d %H:%M UTC') }}. This version is read-only.{% else %}Draft, not yet approved.{% endif %}</p>
+  <p><strong>Version {{ decision.version_number }} · {% if decision.is_approved %}<span class="badge badge--verified">Approved</span> <time datetime="{{ decision.approved_at.isoformat() }}">{{ decision.approved_at.isoformat() }}</time>{% else %}Draft, not approved{% endif %}</strong>{% if decision.is_approved %}. This version is read-only.{% endif %}{% if not print_view and decision.version_number != decision.latest_version %} (an earlier version, shown unchanged){% endif %}</p>
   {% if decision.versions|length > 1 and not print_view %}
   <p class="meta">Versions:
     {% for v in decision.versions %}{% if v.version_number == decision.version_number %}<strong>Version {{ v.version_number }}</strong>{% else %}<a href="?version={{ v.version_number }}">Version {{ v.version_number }}</a>{% endif %}{% if v.is_approved %} (approved){% endif %}{% if not loop.last %} · {% endif %}{% endfor %}

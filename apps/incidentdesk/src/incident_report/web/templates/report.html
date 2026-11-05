@@ -23,7 +23,7 @@
   <p><a href="/samples">All sample reports</a></p>
 </div>
 {% elif not print_view %}
-<p><a href="/reports/{{ report.run_id }}/review">Open video review workspace</a> · <a href="/reports/{{ report.run_id }}/print" target="_blank" rel="noopener noreferrer">Print report (A4 / PDF)</a></p>
+<p><a href="/reports/{{ report.run_id }}/review{% if decision %}?version={{ decision.version_number }}{% endif %}">Open video review workspace</a> · <a href="/reports/{{ report.run_id }}/print{% if decision %}?version={{ decision.version_number }}{% endif %}" target="_blank" rel="noopener noreferrer">Print report (A4 / PDF)</a></p>
 {% endif %}
 {% if decision %}{{ version_banner(decision) }}{% endif %}
 {% if not report.is_valid %}
