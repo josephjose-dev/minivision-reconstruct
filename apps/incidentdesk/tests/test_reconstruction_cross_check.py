@@ -742,7 +742,7 @@ def test_no_interval_differences_are_informational(time: float, expected: str, d
         assert 'class="meta"' in html
 
 
-@pytest.mark.parametrize("mode", ["time_mismatch", "sole_not_matching", "incomplete_provenance"])
+@pytest.mark.parametrize("mode", ["time_mismatch", "outside_agreed_interval", "incomplete_provenance"])
 def test_party_comparison_requires_matching_time_and_verified_export(mode: str) -> None:
     from incident_report.reconstruction.cross_check import compare_view
 
@@ -765,7 +765,7 @@ def test_party_comparison_requires_matching_time_and_verified_export(mode: str) 
         subject=names[0],
         other_party=names[1],
         injury_grade="unknown",
-        timestamp_seconds=4.5 if mode == "time_mismatch" else 6.16 if mode == "sole_not_matching" else 6.08,
+        timestamp_seconds=4.5 if mode == "time_mismatch" else 6.24 if mode == "outside_agreed_interval" else 6.08,
         view_id=s.original_video_sha256,
         confidence=1.0,
     )
@@ -826,3 +826,55 @@ def test_precontact_ignores_uncertain_candidate_and_explains_missing_inputs() ->
     assert any(r.item == "Pre-contact context" for r in rows)
     assert all("calibration_failed" not in r.reason for r in rows)
     assert all("calibration failed" in r.reason for r in rows)
+
+
+@pytest.mark.parametrize(
+    "mode,expected",
+    [
+        ("right_pair", "agree"),
+        ("wrong_pair", "disagree_parties"),
+        ("two_contacts", "cannot_compare"),
+        ("same_frame", "agree"),
+    ],
+)
+def test_party_match_uses_agreed_interval_or_frame(mode: str, expected: str) -> None:
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    e = next(r for r in d.records if isinstance(r.data, EventFields) and r.data.event_type == "collision_candidate")
+    names = ("Synthetic white Toyota sedan", "Synthetic blue Ford SUV", "Synthetic red Honda coupe")
+    parties = [
+        PartyFact(description=n, party_code=c, view_id=s.original_video_sha256, timestamp_seconds=0.0, confidence=1.0)
+        for n, c in zip(names, ("P1", "P2", "P3"), strict=True)
+    ]
+    contact = CollisionObservation(
+        kind="vehicle_contact_vehicle",
+        subject=names[0],
+        other_party=names[2] if mode == "wrong_pair" else names[1],
+        injury_grade="unknown",
+        timestamp_seconds=6.081 if mode == "same_frame" else 6.1,
+        view_id=s.original_video_sha256,
+        confidence=1.0,
+    )
+    contacts = (
+        [contact.model_copy(update={"timestamp_seconds": t}) for t in (6.05, 6.15)]
+        if mode == "two_contacts"
+        else [contact]
+    )
+    f = saved_facts(s.original_video_sha256, 6.0, 6.2).model_copy(
+        update={"parties": parties, "collision_observations": contacts}
+    )
+    if mode == "same_frame":
+        f = f.model_copy(update={"incident_assessments": []})
+    rows = compare_view(d, s.view_id, s.original_video_sha256, f, dict(zip(e.track_refs, ("P1", "P2"), strict=True)))
+    row = next(r for r in rows if r.item == "Parties in contact" and r.producer_time == 6.08)
+    assert row.state == expected
+    if mode == "two_contacts":
+        assert row.reason == "which contact cannot be determined"
+    else:
+        assert row.video_times == (contact.timestamp_seconds,)
+        assert names[0] in row.reason and names[1] in row.reason
+        if mode == "wrong_pair":
+            assert names[2] in row.reason

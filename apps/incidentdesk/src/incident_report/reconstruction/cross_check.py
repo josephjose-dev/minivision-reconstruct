@@ -181,9 +181,32 @@ def compare_view(
     time_states = {row.key: comparison.state for row, comparison in zip(rows, output, strict=True)}
     for row in rows:
         base = result(row, "cannot_compare", "No unique matching contact or current party mapping")
-        matching = [c for c in contacts if c.timestamp_seconds == row.source_time]
         if time_states[row.key] != "agree":
             output.append(replace(base, item="Parties in contact", reason="contact time does not match"))
+            continue
+        if (
+            assessment
+            and assessment.contact_interval_start_seconds is not None
+            and assessment.contact_interval_end_seconds is not None
+        ):
+            matching = [
+                c
+                for c in contacts
+                if assessment.contact_interval_start_seconds
+                <= c.timestamp_seconds
+                <= assessment.contact_interval_end_seconds
+            ]
+        else:
+            matching = [c for c in contacts if _frame_at(c.timestamp_seconds, records, decision) == row.source_frame]
+        if len(matching) > 1:
+            output.append(
+                replace(
+                    base,
+                    item="Parties in contact",
+                    reason="which contact cannot be determined",
+                    video_times=tuple(c.timestamp_seconds for c in matching),
+                )
+            )
             continue
         pair = [mappings.get(ref) for ref in row.track_refs]
         if (
