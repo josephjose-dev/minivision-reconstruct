@@ -44,3 +44,17 @@ This fixture tests display; playback requires a real correctly hash-bound interi
 
 Claude records independent gate, browser, and PDF checks before accepting. Codex has
 prepared this checklist; preparation is not a browser-smoke pass.
+
+## Round 2 follow-up
+
+- With an existing legacy interior link from before attachment refusal, confirm the
+  ignored-export notice and no interior reconstruction comparison, disagreement notice,
+  tool/mapping controls or reconstruction event in native/combined timelines. Keep the
+  immutable history; exercise this in disposable development data only. A valid exterior
+  attachment must continue to render. No producer export edit is needed.
+- With the saved road export and +1 s ±0.5 s reviewer-estimated alignment present,
+  repeat the four-flag matrix and print preview; verify aligned timing is actually visible
+  when both flags are enabled and existing driver/Fault Status/print content remains.
+- A candidate needing review, quarantined or with unresolved order may remain in the road
+  proposal timeline, but must not be listed as a contact in interior timing context. Valid
+  resolved candidates and video contact evidence remain; no new tolerance is introduced.

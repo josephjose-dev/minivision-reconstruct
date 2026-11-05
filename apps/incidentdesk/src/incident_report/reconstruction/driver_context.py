@@ -92,15 +92,19 @@ def _contacts(report: Report, road: str, panels: Mapping[str, Panel]) -> tuple[C
     if panel:
         for group in panel.groups:
             for row in group.rows:
-                if row.event_type == "collision_candidate" and not row.rejected and row.source_time is not None:
+                if (
+                    row.event_type == "collision_candidate"
+                    and not row.rejected
+                    and not row.needs_review
+                    and not group.order_unresolved
+                    and row.source_time is not None
+                ):
                     contacts.append(
                         ContactTime(
                             "Reconstruction candidate peak",
                             row.source_time,
                             row.source_frame,
-                            row.review_status
-                            + (" · Needs review" if row.needs_review else "")
-                            + (" · Order not determined" if group.order_unresolved else ""),
+                            row.review_status,
                         )
                     )
     return tuple(contacts)

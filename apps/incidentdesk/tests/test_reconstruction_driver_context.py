@@ -404,17 +404,13 @@ def test_unusable_candidate_never_supplies_driver_timing(driver_report: Report, 
     alignment = Alignment("b" * 64, road, 0.0, 0.5, "reviewer_estimated", "Synthetic reviewer", "fixture")
     timings = driver_panels(driver_report, panels, (alignment,))["b" * 64].roads[0].timings
     assert timings
-    if change == "needs_review":
-        assert any(
-            t.contact.label == "Reconstruction candidate peak" and "Needs review" in t.contact.review_status
-            for t in timings
-        )
-    else:
-        assert all(t.contact.label != "Reconstruction candidate peak" for t in timings)
+    assert all(t.contact.label != "Reconstruction candidate peak" for t in timings)
 
 
 @pytest.mark.parametrize("kind", ["obscured", "overturned", "needs_review", "unresolved"])
-def test_contact_context_preserves_uncertain_candidates_with_caveats(driver_report: Report, kind: str) -> None:
+def test_contact_context_preserves_video_qualifiers_and_excludes_uncertain_candidates(
+    driver_report: Report, kind: str
+) -> None:
     from dataclasses import replace
 
     from incident_report.facts import CollisionObservation
@@ -468,13 +464,38 @@ def test_contact_context_preserves_uncertain_candidates_with_caveats(driver_repo
     report = driver_report.model_copy(update={"facts": facts})
     a = Alignment("b" * 64, road, 0.0, 0.5, "reviewer_estimated", "Synthetic reviewer", "fixture")
     contacts = [t.contact for t in driver_panels(report, panels, (a,))["b" * 64].roads[0].timings]
-    expected = {
-        "obscured": "contact possible, obscured",
-        "overturned": "vehicle overturned",
-        "needs_review": "Needs review",
-        "unresolved": "Order not determined",
-    }[kind]
-    assert any(expected in (c.label + c.review_status) for c in contacts)
+    assert contacts
+    if kind in {"needs_review", "unresolved"}:
+        assert all(c.label != "Reconstruction candidate peak" for c in contacts)
+    else:
+        expected = {"obscured": "contact possible, obscured", "overturned": "vehicle overturned"}[kind]
+        assert any(expected in (c.label + c.review_status) for c in contacts)
+
+
+def test_quarantined_peak_never_supplies_driver_timing(driver_report: Report) -> None:
+    from incident_report.evidence_import.payloads import EventFields
+    from incident_report.reconstruction.alignment import Alignment
+    from incident_report.reconstruction.driver_context import driver_panels
+    from incident_report.reconstruction.presentation import ViewPanel
+    from incident_report.reconstruction.timeline import timeline_groups
+
+    decision = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert decision.envelope
+    source = decision.envelope.sources[0]
+    candidate = next(
+        r
+        for r in decision.records
+        if isinstance(r.data, EventFields) and r.data.event_type == "collision_candidate" and r.source_time is not None
+    )
+    assert not candidate.needs_review
+    decision = decision.model_copy(update={"quarantined_records": (*decision.quarantined_records, candidate.record_id)})
+    groups = timeline_groups(decision, source.view_id, source.original_video_sha256, ())
+    panels = {source.original_video_sha256: ViewPanel(groups, (), ())}
+    alignment = Alignment(
+        "b" * 64, source.original_video_sha256, 1.0, 0.5, "reviewer_estimated", "Synthetic reviewer", "fixture"
+    )
+    timings = driver_panels(driver_report, panels, (alignment,))["b" * 64].roads[0].timings
+    assert timings and all(t.contact.label != "Reconstruction candidate peak" for t in timings)
 
 
 @pytest.mark.parametrize(

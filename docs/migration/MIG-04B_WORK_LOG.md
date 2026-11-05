@@ -16,9 +16,10 @@ both reviewers are shown. Latest alignments only, unknown excluded, no inferred 
 No alignment means native panel only with an explicit no-timing-relation message.
 
 Video contact interval endpoints, typed contact timestamps (including overturns), and
-non-rejected reconstruction candidate peaks are separately labelled. Obscured intervals,
-review requirements and unresolved order keep their caveats. Rejected or unknown corrected
-times cannot provide numeric context. Signed differences are aligned observation start/end
+non-rejected reconstruction candidate peaks are separately labelled. Obscured video
+intervals keep their qualifier. Following Round 2, candidate peaks needing review,
+quarantined or with unresolved order are excluded from driver timing; rejected or unknown
+corrected times cannot provide numeric context. Signed differences are aligned observation start/end
 minus each cited road contact time. For uncertainty u, definite temporal overlap requires
 start+u ≤ t ≤ end−u; possible overlap requires start−u ≤ t ≤ end+u. No new window,
 metric inference, causation or classification is introduced.
@@ -34,3 +35,10 @@ smoke remains required: `integration/smoke/MIG-04B-INTERIOR-TIMELINE.md`.
 
 No interior capability or export change is requested from reconstruction. Road exports
 remain proposals. Reviewer alignment is a display aid and never enters driver/fault rules.
+
+## Round 2 — legacy links and validation coverage
+
+Pre-existing interior imports are retained in immutable history but ignored before any
+road comparison, event, tool, mapping or combined-timeline projection. A readable notice
+explains the ignored export; native video observations remain. The flag-matrix invariant
+test now exercises both unaligned and reviewer-aligned actual saved road exports.
