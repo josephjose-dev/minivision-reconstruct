@@ -6,7 +6,7 @@ from incident_report.evidence_import.models import ImportDecision, NormalizedRec
 from incident_report.evidence_import.payloads import EventFields, TrackFields
 from incident_report.facts import OverviewFacts
 
-from .timeline import TimelineRow, timeline_groups
+from .timeline import MISSING_LABELS, TimelineRow, timeline_groups
 
 
 def _uncertain(row: TimelineRow, decision: ImportDecision) -> bool:
@@ -89,10 +89,16 @@ def compare_view(
             delta,
         )
 
+    if decision.provenance_state != "verified":
+        return (result(rows[0] if rows else None, "cannot_compare", "export provenance incomplete"),)
     if decision.missing_inputs:
-        return (result(None, "reconstruction_unavailable", "; ".join(decision.missing_inputs)),) + _motion_context(
-            decision, source_view, view_sha, facts, mappings, rows
-        )
+        return (
+            result(
+                None,
+                "reconstruction_unavailable",
+                "; ".join(MISSING_LABELS.get(code, code) for code in decision.missing_inputs),
+            ),
+        ) + _motion_context(decision, source_view, view_sha, facts, mappings, rows)
     uncertain_contact = bool(assessment and assessment.contact_state in {"contact_possible_obscured", "cannot_assess"})
     observed = not uncertain_contact and (
         bool(assessment and assessment.contact_state == "contact_observed") or bool(contacts)
@@ -172,11 +178,13 @@ def compare_view(
             )
         else:
             output.append(result(row, "cannot_compare", "No explicit video analysis contact timing"))
+    time_states = {row.key: comparison.state for row, comparison in zip(rows, output, strict=True)}
     for row in rows:
         base = result(row, "cannot_compare", "No unique matching contact or current party mapping")
         matching = [c for c in contacts if c.timestamp_seconds == row.source_time]
-        if not matching and len(contacts) == 1:
-            matching = contacts
+        if time_states[row.key] != "agree":
+            output.append(replace(base, item="Parties in contact", reason="contact time does not match"))
+            continue
         pair = [mappings.get(ref) for ref in row.track_refs]
         if (
             not row.rejected
@@ -284,7 +292,10 @@ def _motion_context(
         contacts = [
             r
             for r in candidates
-            if not r.rejected and any(ref in r.track_refs for ref in refs) and r.source_time is not None
+            if not r.rejected
+            and not _uncertain(r, decision)
+            and any(ref in r.track_refs for ref in refs)
+            and r.source_time is not None
         ]
         late = next(
             (
@@ -300,7 +311,7 @@ def _motion_context(
         party_video_times = tuple(
             c.timestamp_seconds for c in video_contacts if party.description in {c.subject, c.other_party}
         )
-        if not video_contacts and len(candidates) == 1:
+        if not video_contacts and len([r for r in candidates if not r.rejected and not _uncertain(r, decision)]) == 1:
             party_video_times = video_times
         video_late = next(
             (r for r in first if r.source_time is not None and any(r.source_time >= t for t in party_video_times)), None
@@ -314,7 +325,11 @@ def _motion_context(
                     "Pre-contact context",
                     "cannot_compare",
                     f"Reconstruction lacks pre-contact context for {party.description}"
-                    + (": " + "; ".join(decision.missing_inputs) if missing else ": first seen at or after contact"),
+                    + (
+                        ": " + "; ".join(MISSING_LABELS.get(code, code) for code in decision.missing_inputs)
+                        if missing
+                        else ": first seen at or after contact"
+                    ),
                     view_sha,
                     citation.source_time if citation else None,
                     citation.source_frame if citation else None,

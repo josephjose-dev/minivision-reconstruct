@@ -372,6 +372,15 @@ def test_cross_check_context_render_is_offline_escaped_and_print_invariant(
         panel = values["reconstruction"][s.original_video_sha256]
         assert any(row.state == "disagree_time" for row in panel.comparisons)
         html = render(values)
+        import re
+
+        without_cross_check = render({})
+        fault_section = r'<section data-report-section="parties".*?</section>'
+        before_fault = re.search(fault_section, without_cross_check, re.S)
+        after_fault = re.search(fault_section, html, re.S)
+        assert before_fault and after_fault
+        assert "Fault Status" in after_fault[0] and "fault-status-text" in after_fault[0]
+        assert after_fault[0].encode() == before_fault[0].encode()
         assert "<summary>Reconstruction cross-check</summary>" in html
         assert "<details open><summary>Reconstruction cross-check" not in html
         assert "Reconstruction disagrees with the video analysis on" in html
@@ -729,3 +738,91 @@ def test_no_interval_differences_are_informational(time: float, expected: str, d
             )
         )
         assert "Times differ (no interval)" in html
+        assert "View Front" in html
+        assert 'class="meta"' in html
+
+
+@pytest.mark.parametrize("mode", ["time_mismatch", "sole_not_matching", "incomplete_provenance"])
+def test_party_comparison_requires_matching_time_and_verified_export(mode: str) -> None:
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    e = next(r for r in d.records if isinstance(r.data, EventFields) and r.data.event_type == "collision_candidate")
+    f = (
+        saved_facts(s.original_video_sha256, 4.0, 5.0)
+        if mode == "time_mismatch"
+        else saved_facts(s.original_video_sha256, 6.0, 6.2)
+    )
+    names = ("Synthetic white Toyota sedan", "Synthetic blue Ford SUV")
+    parties = [
+        PartyFact(description=n, party_code=c, view_id=s.original_video_sha256, timestamp_seconds=0.0, confidence=1.0)
+        for n, c in zip(names, ("P1", "P2"), strict=True)
+    ]
+    contact = CollisionObservation(
+        kind="vehicle_contact_vehicle",
+        subject=names[0],
+        other_party=names[1],
+        injury_grade="unknown",
+        timestamp_seconds=4.5 if mode == "time_mismatch" else 6.16 if mode == "sole_not_matching" else 6.08,
+        view_id=s.original_video_sha256,
+        confidence=1.0,
+    )
+    f = f.model_copy(update={"parties": parties, "collision_observations": [contact]})
+    if mode == "incomplete_provenance":
+        d = d.model_copy(update={"provenance_state": "incomplete_provenance"})
+    rows = compare_view(d, s.view_id, s.original_video_sha256, f, dict(zip(e.track_refs, ("P1", "P2"), strict=True)))
+    if mode == "incomplete_provenance":
+        assert all(r.state == "cannot_compare" and r.reason == "export provenance incomplete" for r in rows)
+    else:
+        row = next(r for r in rows if r.item == "Parties in contact" and r.producer_time == 6.08)
+        assert row.state == "cannot_compare"
+        if mode == "time_mismatch":
+            assert row.reason == "contact time does not match"
+
+
+def test_precontact_ignores_uncertain_candidate_and_explains_missing_inputs() -> None:
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    e = next(r for r in d.records if isinstance(r.data, EventFields) and r.data.event_type == "collision_candidate")
+    ref = e.track_refs[0]
+    records = tuple(
+        r.model_copy(update={"needs_review": True})
+        if r.record_id == e.record_id
+        else r.model_copy(update={"source_time": 7.0, "source_frame": 175})
+        if isinstance(r.data, EventFields) and r.data.event_type == "first_observed" and ref in r.track_refs
+        else r
+        for r in d.records
+    )
+    d = d.model_copy(update={"records": records})
+    party = PartyFact(
+        description="Synthetic white Toyota sedan",
+        party_code="P1",
+        view_id=s.original_video_sha256,
+        timestamp_seconds=0.0,
+        confidence=1.0,
+    )
+    contact = CollisionObservation(
+        kind="contact_other",
+        subject=party.description,
+        other_party="barrier",
+        injury_grade="unknown",
+        timestamp_seconds=8.0,
+        view_id=s.original_video_sha256,
+        confidence=1.0,
+    )
+    f = saved_facts(s.original_video_sha256, 8.0, 8.2).model_copy(
+        update={"parties": [party], "collision_observations": [contact]}
+    )
+    assert not any(
+        r.item == "Pre-contact context" for r in compare_view(d, s.view_id, s.original_video_sha256, f, {ref: "P1"})
+    )
+    missing = d.model_copy(update={"missing_inputs": ("calibration_failed",)})
+    rows = compare_view(missing, s.view_id, s.original_video_sha256, f, {ref: "P1"})
+    assert any(r.item == "Pre-contact context" for r in rows)
+    assert all("calibration_failed" not in r.reason for r in rows)
+    assert all("calibration failed" in r.reason for r in rows)

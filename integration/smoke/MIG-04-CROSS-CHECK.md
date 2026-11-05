@@ -21,3 +21,18 @@ No producer fixture edits or live model calls. Retain visible synthetic labels.
    Record screenshots, incident/import identifiers, browser/codec and any unexercised step.
 
 Claude owns manual browser smoke and independent critical acceptance. No merge/push/tag by Codex.
+
+## Round 2 regression smoke (Claude)
+
+- On the labelled scratch seed, retain the prior flag/mapping/fault/print checks.
+- Check a fact in a saved lost/interpolated span, and a recovered fact whose prior
+  movement interval crosses that span: Cannot compare, with the party's missing
+  observation reason; neither becomes a motion disagreement notice.
+- Check another saved contact outside the assessment interval (and two contacts
+  within a broad interval): the out-of-interval producer peak is ambiguous, not a
+  timing disagreement. Both times remain visible; no notice from that row.
+- With no assessment interval, unequal frames display Times differ (no interval),
+  both native times and signed seconds. No notice. Matching frame remains Agrees.
+- Parties compare only when contact time agrees and an exact unique typed contact
+  matches it. Unverified export provenance always abstains. Missing-input reasons
+  are readable. Camera names are primary and hashes secondary metadata.

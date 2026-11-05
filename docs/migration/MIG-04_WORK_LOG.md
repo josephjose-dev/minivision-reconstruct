@@ -66,3 +66,37 @@ No producer change required. Existing event, movement, source timestamp and revi
 exports are read as written. Reconstruction stays a proposal and a reviewer cross-check;
 producer confirmation never changes Fault Status, fines, storyline, summary, Q&A or PDF.
 No merge, push or tag by Codex. Independent Claude critical review remains required.
+
+## Round 2 — reviewer-requested safeguards
+
+H1: motion comparison now requires an observed/recovered observation at the saved
+fact's source frame and no lost/interpolated observation in the inclusive transition
+to fact frame span. Recovery at the fact frame does not bridge an earlier gap.
+Without this coverage the row abstains with the named-party observation reason.
+Tests use unchanged occluded-impact observations at 10.0 s (both moving/stopped),
+10.72 s recovery and 9.28 s clear-span control. Relative interpolation is tested
+with a labelled synthetic earlier stop; no producer fixture bytes are edited.
+
+M1: an isolated fresh Python subprocess imports the entire requested fault-input
+module closure and rejects reconstruction, evidence_import or web modules in
+sys.modules. Three deliberate contamination cases demonstrate the guard trips.
+The original text scan stays in place; no donor test or guard script changed.
+
+M2/M3 supersede the state table above where applicable. An out-of-interval peak
+with another same-view contact or assessment interval is cannot_compare, with the
+additional cited time(s). Multiple distinct contacts inside one broad interval are
+also ambiguous. With no interval, matching saved source frames still agree; unequal
+frames become differs_no_interval, display both times and their signed delta, and
+never enter the disagreement notice. No tolerance is invented.
+
+Low fixes: unverified exports abstain with 'export provenance incomplete'; missing
+inputs use existing readable labels; uncertain candidates cannot supply pre-contact
+context. Party comparisons require time agreement plus an exact unique saved
+contact match; the single-contact fallback is removed. Rows show the camera display
+label and retain the hash as secondary metadata. The non-print Fault Status section
+is tested byte-identically with a disagreement present, in addition to the full
+print HTML invariant. All previous assertions are retained.
+
+Focused Round 2 suite: 52 passed in 52.37s; final 13-check gate evidence is in the
+donor result's Round 2 section. Native scoped Standards/Spec checks prepare the
+handoff only. Claude independently reruns the gate and browser smoke before merge.
