@@ -58,6 +58,7 @@ class TimelineRow:
     track_refs: tuple[str, ...]
     track_states: tuple[str, ...]
     order_unresolved_with: tuple[str, ...]
+    event_type: str = ""
 
 
 @dataclass(frozen=True)
@@ -122,6 +123,7 @@ def timeline_groups(
                     )
                 ),
                 event.order_unresolved_with or (),
+                event.event_type,
             )
         )
     for index, moment in enumerate(app_moments):
