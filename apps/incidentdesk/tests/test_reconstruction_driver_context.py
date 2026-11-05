@@ -145,6 +145,88 @@ def test_unmapped_motion_names_missing_mapping() -> None:
     assert mapped.reason == "reconstruction has no observation of Synthetic white Toyota sedan at this time"
 
 
+def test_legacy_interior_attachment_is_ignored_throughout_display(database_url: str, driver_report: Report) -> None:
+    from incident_report.evidence_import.persistence import import_bundle
+    from incident_report.reconstruction.alignment import Alignment, record_alignment
+    from incident_report.reconstruction.config import ReconstructionSettings
+    from incident_report.reconstruction.presentation import context
+    from incident_report.reconstruction.store import Workspace
+    from incident_report.web.templating import build_environment
+
+    decision = inspect_bundle(FIXTURES / "mig02-relative")
+    assert decision.envelope and driver_report.facts
+    source = decision.envelope.sources[0]
+    legacy_view = ReportView(
+        filename="legacy-interior.avi",
+        label="Synthetic legacy interior",
+        sha256=source.original_video_sha256,
+        role=Role.INTERIOR,
+        acquisition_method=None,
+    )
+    legacy_contact = driver_report.facts.incident_assessments[0].model_copy(update={"view_id": legacy_view.sha256})
+    report = driver_report.model_copy(
+        update={
+            "views": (*driver_report.views, legacy_view),
+            "facts": driver_report.facts.model_copy(
+                update={"incident_assessments": [*driver_report.facts.incident_assessments, legacy_contact]}
+            ),
+        }
+    )
+    settings = ReconstructionSettings(True, FIXTURES, driver_context_enabled=True)
+    saved = report.model_dump_json()
+    template = build_environment().get_template("report.html")
+    before_print = template.render(report=report, print_view=True)
+    with psycopg.connect(database_url) as conn:
+        conn.execute(
+            "INSERT INTO runs(run_id,origin,created_at,input_hash,report,status,total_latency_ms) VALUES (%s,'replay',now(),%s,%s::jsonb,'succeeded',0)",
+            (report.run_id, report.input_hash, saved),
+        )
+        conn.commit()
+        workspace = Workspace(conn, settings)
+        workspace.attach(report.run_id, "mig02-multi-review", "Synthetic reviewer")
+        imported = import_bundle(FIXTURES / "mig02-relative", conn)
+        # Simulate a link saved before interior-role attachment refusal existed.
+        conn.execute(
+            "INSERT INTO incident_evidence_imports(link_id,incident_id,import_id,view_sha256,source_view_id,producer_case_id,attached_by) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (
+                uuid.uuid4(),
+                report.run_id,
+                imported.import_id,
+                legacy_view.sha256,
+                source.view_id,
+                source.producer_case_id or decision.envelope.case_id,
+                "Synthetic legacy fixture",
+            ),
+        )
+        conn.commit()
+        road = report.views[0].sha256
+        for view in (road, legacy_view.sha256):
+            record_alignment(
+                workspace,
+                report.run_id,
+                Alignment(view, road, 0.0, 0.5, "reviewer_estimated", "Synthetic reviewer", "fixture"),
+            )
+        values = context(workspace, report, settings)
+        panel = values["reconstruction"][legacy_view.sha256]
+        assert panel.comparisons == ()
+        assert values["reconstruction_disagreements"][legacy_view.sha256] == ()
+        assert not panel.links and not panel.tracks and not panel.tool_selections and not panel.stale_mappings
+        assert not any(r.origin == "Reconstruction proposal" for g in panel.groups for r in g.rows)
+        assert not any(
+            r.row.view_id == legacy_view.sha256 and r.row.origin == "Reconstruction proposal"
+            for g in values["reconstruction_combined"]
+            for r in g.rows
+        )
+        assert any(r.origin == "Reconstruction proposal" for g in values["reconstruction"][road].groups for r in g.rows)
+        html = template.render(report=report, print_view=False, **values)
+        assert "reconstruction export attached to an interior view is ignored (road views only)" in html
+        assert "Reconstruction disagrees with the video analysis on" not in html
+        assert "Video analysis driver observation" in html
+        assert template.render(report=report, print_view=True, **values) == before_print
+        assert len(workspace.current(report.run_id)) == 2  # historical evidence retained, not deleted
+        assert report.model_dump_json() == saved
+
+
 @pytest.mark.parametrize(
     "mode,expected_start,uncertainty", [("direct", 5.0, 0.5), ("reverse", 5.0, 0.5), ("shared", 5.0, 0.75)]
 )
