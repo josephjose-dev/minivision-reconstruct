@@ -62,6 +62,7 @@ from incident_report.hashing import incident_input_hash, sha256_hex
 from incident_report.intake import configured_store, receive_view
 from incident_report.intake_limits import IntakeLimits
 from incident_report.questions import QAConnection, QuestionStore, ReplayQAConnection
+from incident_report.reconstruction.config import ReconstructionSettings
 from incident_report.runlog import RunLog
 from incident_report.sample_reports import BANNER, SampleReport, load_samples
 from incident_report.storage import EvidenceStore, StorageError, create_evidence_store
@@ -132,6 +133,7 @@ def create_app(
     app.state.evidence holds the configured storage adapter. An unconfigured deployment
     can display pages, but refuses uploads rather than losing evidence.
     """
+    reconstruction_settings = ReconstructionSettings.from_env()
     # Override OS MIME mappings (including the Windows registry) for consistent static responses.
     mimetypes.add_type("text/css", ".css")
     mimetypes.add_type("font/woff2", ".woff2")
@@ -537,7 +539,7 @@ def create_app(
         if run.status is RunStatus.SUCCEEDED and run.report is not None:
             try:
                 context = decision_context(request, log, run, version)
-                context.update(reconstruction_context(log, run.report))
+                context.update(reconstruction_context(log, run.report, reconstruction_settings))
             except DecisionRefused as exc:
                 return error_page(request, exc.status_code, exc.message)
             return templates.TemplateResponse(
@@ -655,7 +657,7 @@ def create_app(
             run = accessible_report(log, request, run_id)
             context = decision_context(request, log, run, version)
             if run.report is not None:
-                context.update(reconstruction_context(log, run.report))
+                context.update(reconstruction_context(log, run.report, reconstruction_settings))
         except HTTPException as exc:
             return error_page(request, exc.status_code, str(exc.detail))
         except DecisionRefused as exc:
@@ -687,7 +689,7 @@ def create_app(
     install_questions(app, log, question_store, qa_connection, evidence, error_page)
     install_review(app, log, evidence)
     install_decisions(app, log, error_page)
-    install_reconstruction(app, log, error_page)
+    install_reconstruction(app, log, error_page, reconstruction_settings)
 
     @app.post("/reports/{run_id}/retry")
     async def retry_report(request: Request, run_id: uuid.UUID, background_tasks: BackgroundTasks) -> Response:

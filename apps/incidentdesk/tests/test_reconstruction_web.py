@@ -20,6 +20,28 @@ from incident_report.storage.local import LocalEvidenceStore
 from incident_report.web import create_app
 
 
+@pytest.mark.parametrize("flag", ["off", "no", "yes", "garbage"])
+def test_invalid_reconstruction_flag_refuses_app_startup(flag: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("INCIDENTDESK_RECONSTRUCTION", flag)
+    with pytest.raises(ValueError, match="INCIDENTDESK_RECONSTRUCTION must be true or false"):
+        create_app(ai=ReplayAIConnection(), run_log=RunLog("not-a-database"))
+
+
+def test_invalid_reconstruction_context_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    from incident_report.web.reconstruction import reconstruction_context
+
+    monkeypatch.setenv("INCIDENTDESK_RECONSTRUCTION", "garbage")
+    report = Report(
+        run_id=uuid.uuid4(),
+        input_hash="a" * 64,
+        prompt_version="synthetic",
+        provenance="synthetic",
+        summary="Synthetic",
+        views=(),
+    )
+    assert "reconstruction_unavailable" in reconstruction_context(RunLog("not-a-database"), report)
+
+
 def test_local_attach_mapping_alignment_and_flag_off_pages(
     run_log: RunLog, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -45,13 +67,21 @@ def test_local_attach_mapping_alignment_and_flag_off_pages(
             total_latency_ms=0,
         )
     )
-    app = create_app(ai=ReplayAIConnection(), run_log=run_log, evidence=LocalEvidenceStore(tmp_path / "evidence"))
-    client = authorized_client(app, run_log.database_url)
+    from fastapi.testclient import TestClient
+
+    def configured_client(previous: TestClient | None = None) -> TestClient:
+        app = create_app(ai=ReplayAIConnection(), run_log=run_log, evidence=LocalEvidenceStore(tmp_path / "evidence"))
+        if previous is None:
+            return authorized_client(app, run_log.database_url)
+        return TestClient(app, base_url="https://testserver", cookies=previous.cookies)
+
     url = f"/reports/{report.run_id}"
     monkeypatch.setenv("INCIDENTDESK_RECONSTRUCTION", "false")
+    client = configured_client()
     before = {suffix: client.get(url + suffix).content for suffix in ("", "/review", "/print")}
     monkeypatch.setenv("INCIDENTDESK_RECONSTRUCTION", "true")
     monkeypatch.setenv("INCIDENTDESK_EVIDENCE_EXPORTS_ROOT", str(FIXTURES))
+    client = configured_client(client)
     page = client.get(url + "/review")
     assert page.status_code == 200
     token = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
@@ -113,8 +143,10 @@ def test_local_attach_mapping_alignment_and_flag_off_pages(
     )
     assert "occluded" not in run_log.get(report.run_id).report.model_dump_json()  # type: ignore[union-attr]
     monkeypatch.setenv("INCIDENTDESK_RECONSTRUCTION", "false")
+    client = configured_client(client)
     assert before == {suffix: client.get(url + suffix).content for suffix in before}
     assert client.post(url + "/reconstruction/attach", data=fields, headers=headers).status_code == 404
     monkeypatch.setenv("INCIDENTDESK_RECONSTRUCTION", "true")
+    client = configured_client(client)
     client.cookies.clear()
     assert client.post(url + "/reconstruction/attach", data=fields, headers=headers).status_code == 403

@@ -24,11 +24,13 @@ from incident_report.web.review import accessible_report
 MAX_WORKSPACE_BODY_BYTES = 16 * 1024
 
 
-def reconstruction_context(log: RunLog, report: Report) -> dict[str, Any]:
-    settings = ReconstructionSettings.from_env()
-    if not settings.enabled:
-        return {}
+def reconstruction_context(
+    log: RunLog, report: Report, settings: ReconstructionSettings | None = None
+) -> dict[str, Any]:
     try:
+        settings = settings if settings is not None else ReconstructionSettings.from_env()
+        if not settings.enabled:
+            return {}
         with psycopg.connect(local_database(log.database_url)) as connection:
             return context(Workspace(connection, settings), report, settings)
     except (ValueError, OSError, psycopg.Error):
@@ -37,12 +39,17 @@ def reconstruction_context(log: RunLog, report: Report) -> dict[str, Any]:
         }
 
 
-def install_reconstruction(app: FastAPI, log: RunLog, error_page: Callable[[Request, int, str], Response]) -> None:
+def install_reconstruction(
+    app: FastAPI,
+    log: RunLog,
+    error_page: Callable[[Request, int, str], Response],
+    settings: ReconstructionSettings,
+) -> None:
     @app.get("/reconstruct/{tool}/")
     def tool_fallback(tool: str) -> Response:
         from incident_report.reconstruction.tools import unavailable
 
-        if not ReconstructionSettings.from_env().enabled:
+        if not settings.enabled:
             return PlainTextResponse("Not found", status_code=404)
         try:
             return PlainTextResponse(unavailable(tool), status_code=503)
@@ -51,7 +58,6 @@ def install_reconstruction(app: FastAPI, log: RunLog, error_page: Callable[[Requ
 
     @app.post("/reports/{run_id}/reconstruction/{action}")
     async def change(request: Request, run_id: uuid.UUID, action: str) -> Response:
-        settings = ReconstructionSettings.from_env()
         if not settings.enabled:
             return error_page(request, 404, "Reconstruction workspace is disabled.")
         if not _check_origin(request):
