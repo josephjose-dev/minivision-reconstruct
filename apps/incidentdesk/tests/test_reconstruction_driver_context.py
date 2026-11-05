@@ -1,6 +1,7 @@
 """Synthetic saved facts for MIG-04B; never Gemini output."""
 
 import uuid
+from pathlib import Path
 
 import psycopg
 import pytest
@@ -9,6 +10,7 @@ from evidence_import_fixtures import FIXTURES
 from incident_report.domain import Report, ReportView, Role
 from incident_report.evidence_import import inspect_bundle
 from incident_report.facts import DriverObservation, OverviewFacts, PartyFact, StructuredFact
+from incident_report.runlog import RunLog
 
 
 @pytest.fixture
@@ -82,9 +84,9 @@ def test_driver_intervals_on_own_clock(database_url: str, driver_report: Report)
 
     with psycopg.connect(database_url) as conn:
         values = context(
-            Workspace(conn, ReconstructionSettings(True, FIXTURES)),
+            Workspace(conn, ReconstructionSettings(True, FIXTURES, driver_context_enabled=True)),
             driver_report,
-            ReconstructionSettings(True, FIXTURES),
+            ReconstructionSettings(True, FIXTURES, driver_context_enabled=True),
         )
         html = build_environment().get_template("report.html").render(report=driver_report, print_view=False, **values)
     assert "Video analysis driver observation" in html
@@ -248,7 +250,7 @@ def test_aligned_saved_import_contact_citations_and_offline_render(
     report = driver_report.model_copy(
         update={"facts": driver_report.facts.model_copy(update={"collision_observations": [contact]})}
     )
-    settings = ReconstructionSettings(True, FIXTURES)
+    settings = ReconstructionSettings(True, FIXTURES, driver_context_enabled=True)
     saved = report.model_dump_json()
     with psycopg.connect(database_url) as conn:
         conn.execute(
@@ -391,3 +393,109 @@ def test_contact_context_preserves_uncertain_candidates_with_caveats(driver_repo
         "unresolved": "Order not determined",
     }[kind]
     assert any(expected in (c.label + c.review_status) for c in contacts)
+
+
+@pytest.mark.parametrize(
+    "flag,expected", [(None, False), ("false", False), ("0", False), ("true", True), ("1", True), (" TRUE ", True)]
+)
+def test_driver_context_flag_is_explicit_and_default_off(flag: str | None, expected: bool) -> None:
+    from incident_report.reconstruction.config import ReconstructionSettings
+
+    env = {} if flag is None else {"INCIDENTDESK_DRIVER_CONTEXT": flag}
+    assert ReconstructionSettings.from_env(env).driver_context_enabled is expected
+
+
+@pytest.mark.parametrize("flag", ["off", "no", "yes", "garbage"])
+def test_invalid_driver_context_flag_refuses_startup(flag: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    from incident_report.ai import ReplayAIConnection
+    from incident_report.runlog import RunLog
+    from incident_report.web import create_app
+
+    monkeypatch.setenv("INCIDENTDESK_DRIVER_CONTEXT", flag)
+    with pytest.raises(ValueError, match="INCIDENTDESK_DRIVER_CONTEXT must be true or false"):
+        create_app(ai=ReplayAIConnection(), run_log=RunLog("not-a-database"))
+
+
+def test_driver_context_http_flags_preserve_fault_driver_and_print(
+    run_log: "RunLog", driver_report: Report, tmp_path: "Path", monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import re
+    from datetime import UTC, datetime
+
+    from fastapi.testclient import TestClient
+
+    from access_client import authorized_client
+    from incident_report.ai import ReplayAIConnection
+    from incident_report.domain import Origin, Run, RunStatus
+    from incident_report.fines import Fine, FinesTable
+    from incident_report.rules import evaluate_situation
+    from incident_report.rules.models import PartyViolation
+    from incident_report.storage.local import LocalEvidenceStore
+    from incident_report.web import create_app
+    from test_core_fault_rules import lane_situation
+
+    assert driver_report.facts
+    fine = FinesTable.default().get("below_minimum_speed")
+    assert isinstance(fine, Fine)
+    violation = PartyViolation(
+        party_description="Synthetic <script>driver</script>",
+        rule_id="synthetic fixture",
+        item_number=fine.item_number,
+        name_en=fine.en,
+        aed=fine.aed,
+        black_points=fine.black_points,
+        impound_days=fine.impound_days,
+        source_url=fine.source_url,
+        status=fine.status,
+        cited_facts=(driver_report.facts.parties[0],),
+    )
+    report = driver_report.model_copy(
+        update={"parties": evaluate_situation(lane_situation()), "violations": (violation,)}
+    )
+    assert report.parties and report.violations and report.driver_assessments
+    run_log.record(
+        Run(
+            run_id=report.run_id,
+            origin=Origin.REPLAY,
+            created_at=datetime.now(UTC),
+            input_hash=report.input_hash,
+            report=report,
+            status=RunStatus.SUCCEEDED,
+            total_latency_ms=0,
+        )
+    )
+    saved = report.model_dump_json()
+    baseline = None
+    client = None
+    url = f"/reports/{report.run_id}"
+    for reconstruction, driver in [(False, False), (False, True), (True, False), (True, True)]:
+        monkeypatch.setenv("INCIDENTDESK_RECONSTRUCTION", str(reconstruction).lower())
+        monkeypatch.setenv("INCIDENTDESK_DRIVER_CONTEXT", str(driver).lower())
+        monkeypatch.setenv("INCIDENTDESK_EVIDENCE_EXPORTS_ROOT", str(FIXTURES))
+        app = create_app(ai=ReplayAIConnection(), run_log=run_log, evidence=LocalEvidenceStore(tmp_path))
+        client = (
+            authorized_client(app, run_log.database_url)
+            if client is None
+            else TestClient(app, base_url="https://testserver", cookies=client.cookies)
+        )
+        page, review, printing = (client.get(url + suffix) for suffix in ("", "/review", "/print"))
+        assert page.status_code == review.status_code == printing.status_code == 200
+        assert ("Interior driver timeline" in page.text) is (reconstruction and driver)
+        assert ("Interior driver timeline" in review.text) is (reconstruction and driver)
+        if reconstruction and driver:
+            assert "Clocks not aligned; no timing relation shown" in page.text
+        parts = []
+        for pattern in [
+            r'<section data-report-section="parties".*?</section>',
+            r'<section aria-label="Driver observations">.*?</section>',
+        ]:
+            section = re.search(pattern, page.text, re.S)
+            assert section
+            parts.append(section[0].encode())
+        assert b"Fault Status" in parts[0] and b"Entertainment" in parts[1]
+        current = (parts, printing.content)
+        if baseline is None:
+            baseline = current
+        assert current == baseline
+    stored = run_log.get(report.run_id).report
+    assert stored is not None and stored.model_dump_json() == saved

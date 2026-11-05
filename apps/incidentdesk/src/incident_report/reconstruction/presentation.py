@@ -110,7 +110,7 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
         )
     alignments = alignment_history(workspace, report.run_id)
     return {
-        "driver_context": driver_panels(report, panels, alignments),
+        "driver_context": driver_panels(report, panels, alignments) if settings.driver_context_enabled else {},
         "reconstruction": panels,
         "reconstruction_disagreements": {
             view: tuple(
