@@ -58,7 +58,7 @@ def compare_view(
         r.record_id for r in records if isinstance(r.data, EventFields) and r.data.event_type == "collision_candidate"
     }
     assessments = [a for a in facts.incident_assessments if a.view_id == view_sha] if facts else []
-    assessment = assessments[0] if len(assessments) == 1 else None
+    assessment = assessments[0] if assessments else None
     contacts = (
         [c for c in facts.collision_observations if c.view_id == view_sha and c.kind in CONTACT_KINDS] if facts else []
     )
@@ -121,6 +121,31 @@ def compare_view(
             if assessment and assessment.contact_interval_start_seconds is not None:
                 low, high = times
                 agrees = low <= row.source_time <= high
+                other_times = [c.timestamp_seconds for c in contacts if not low <= c.timestamp_seconds <= high]
+                distinct_contacts = {(c.timestamp_seconds, frozenset((c.subject, c.other_party))) for c in contacts}
+                if len(distinct_contacts) > 1:
+                    other_times = sorted({c.timestamp_seconds for c in contacts})
+                other_times.extend(
+                    a.contact_interval_start_seconds
+                    for a in assessments[1:]
+                    if a.contact_interval_start_seconds is not None
+                    and a.contact_interval_end_seconds is not None
+                    and (a.contact_interval_start_seconds, a.contact_interval_end_seconds) != (low, high)
+                )
+                if not agrees and other_times:
+                    output.append(
+                        replace(
+                            result(
+                                row,
+                                "cannot_compare",
+                                "video analysis reports another contact at "
+                                + ", ".join(f"{t:g} s" for t in other_times)
+                                + "; which contact this is cannot be determined",
+                            ),
+                            video_times=times + tuple(other_times),
+                        )
+                    )
+                    continue
                 delta = row.source_time - (low if row.source_time < low else high)
             else:
                 # Half-open intervals between consecutive saved presentation timestamps.

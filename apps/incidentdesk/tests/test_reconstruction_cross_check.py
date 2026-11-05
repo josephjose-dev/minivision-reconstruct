@@ -616,3 +616,49 @@ assert not forbidden, 'Fault input import boundary breached: ' + repr(forbidden)
         assert result.returncode != 0
         assert "Fault input import boundary breached" in result.stderr
         assert contamination in result.stderr
+
+
+@pytest.mark.parametrize(
+    "kind", ["vehicle_contact_vehicle", "vehicle_struck_pedestrian", "contact_other", "assessment", "two_within"]
+)
+def test_second_contact_is_ambiguous_not_timing_disagreement(kind: str) -> None:
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    e = next(r for r in d.records if isinstance(r.data, EventFields) and r.data.event_type == "collision_candidate")
+    f = saved_facts(s.original_video_sha256, 4.0, 5.0)
+    if kind == "assessment":
+        f = f.model_copy(
+            update={
+                "incident_assessments": f.incident_assessments
+                + [
+                    f.incident_assessments[0].model_copy(
+                        update={"contact_interval_start_seconds": 6.0, "contact_interval_end_seconds": 6.2}
+                    )
+                ]
+            }
+        )
+    else:
+        contact = CollisionObservation(
+            kind="contact_other" if kind == "two_within" else kind,
+            subject="Synthetic white Toyota sedan",
+            other_party="Synthetic blue Ford SUV",
+            injury_grade="unknown",
+            timestamp_seconds=6.08,
+            view_id=s.original_video_sha256,
+            confidence=1.0,
+        )
+        observations = (
+            [contact.model_copy(update={"timestamp_seconds": t}) for t in (4.2, 4.8)]
+            if kind == "two_within"
+            else [contact]
+        )
+        f = f.model_copy(update={"collision_observations": observations})
+    maps = dict(zip(e.track_refs, ("P1", "P2"), strict=True))
+    row = compare_view(d, s.view_id, s.original_video_sha256, f, maps)[0]
+    assert row.state == "cannot_compare"
+    assert "video analysis reports another contact at" in row.reason
+    assert "which contact this is cannot be determined" in row.reason
+    assert row.difference_seconds is None
