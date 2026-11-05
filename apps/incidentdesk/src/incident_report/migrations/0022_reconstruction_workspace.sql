@@ -10,7 +10,7 @@ CREATE TABLE incident_evidence_imports (
  producer_case_id text NOT NULL,
  attached_at timestamptz NOT NULL DEFAULT now(),
  attached_by text NOT NULL,
- superseded_by uuid,
+ -- Supersession is recorded only in incident_evidence_supersessions (append-only).
  sequence_number bigint GENERATED ALWAYS AS IDENTITY,
  UNIQUE (incident_id,import_id,view_sha256),
  UNIQUE (incident_id,link_id)

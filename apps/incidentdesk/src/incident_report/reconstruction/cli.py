@@ -28,15 +28,18 @@ def main(argv: list[str] | None = None) -> int:
         if not database:
             raise WorkspaceRefused("DATABASE_URL is required")
         with psycopg.connect(local_database(database)) as connection:
-            links = Workspace(connection, settings).attach(args.incident, args.bundle, args.attached_by)
-        print(
-            json.dumps(
-                [
-                    {"link_id": str(link.link_id), "import_id": link.import_id, "view": link.view_sha256}
-                    for link in links
-                ]
-            )
-        )
+            workspace = Workspace(connection, settings)
+            links = workspace.attach(args.incident, args.bundle, args.attached_by)
+            result = [
+                {
+                    "link_id": str(link.link_id),
+                    "import_id": link.import_id,
+                    "view": link.view_sha256,
+                    "note": workspace.attachment_note(link),
+                }
+                for link in links
+            ]
+        print(json.dumps(result))
         return 0
     except (ValueError, OSError) as exc:
         parser.exit(2, f"{exc}\n")

@@ -157,7 +157,9 @@ def payload(
         data["peak_frame"] = frame if resolved else None
         data["peak_time"] = canonical if resolved else None
         if len(row["time_window"]) != 2 or row["time_window"][0] > row["time_window"][1]:
-            raise ValueError("invalid source-time interval")
+            data["time_window"] = (None, None)
+            data["covering_frames"] = None
+            return _ADAPTER.validate_python(data)
         window: list[float] = []
         for time in row["time_window"]:
             matches = [value for value in frames.values() if abs(value - time) <= TIMESTAMP_TOLERANCE_SECONDS]

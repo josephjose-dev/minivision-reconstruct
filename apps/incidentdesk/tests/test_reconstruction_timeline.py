@@ -169,6 +169,46 @@ def test_seek_controls_only_appear_with_the_existing_player() -> None:
     values = dict(panel=SimpleNamespace(groups=groups, notices=(), links=()), print_view=False)
     assert "data-seconds=" not in template.render(review_workspace=False, **values)
     assert "data-seconds=" in template.render(review_workspace=True, **values)
+    assert "lost at some point in this clip" in template.render(review_workspace=True, **values)
+    assert "interpolated at some point in this clip" in template.render(review_workspace=True, **values)
+
+
+def test_unavailable_notice_is_excluded_from_browser_print() -> None:
+    from html.parser import HTMLParser
+    from types import SimpleNamespace
+
+    from incident_report.web.templating import build_environment
+
+    class VisibleText(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.hidden: list[bool] = []
+            self.printed: list[str] = []
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            self.hidden.append(any(self.hidden) or "reconstruction-only" in (dict(attrs).get("class") or "").split())
+
+        def handle_endtag(self, tag: str) -> None:
+            if self.hidden:
+                self.hidden.pop()
+
+        def handle_data(self, data: str) -> None:
+            if not any(self.hidden):
+                self.printed.append(data)
+
+    html = (
+        build_environment()
+        .get_template("review_timeline.html")
+        .render(
+            reconstruction_unavailable="Local workspace unavailable",
+            print_view=False,
+            report=SimpleNamespace(views=(), storyline=()),
+        )
+    )
+    assert "Local workspace unavailable" in html
+    browser_print = VisibleText()
+    browser_print.feed(html)
+    assert "Local workspace unavailable" not in "".join(browser_print.printed)
 
 
 def test_browser_print_retains_original_app_citations() -> None:

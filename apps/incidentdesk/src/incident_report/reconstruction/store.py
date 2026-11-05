@@ -62,6 +62,12 @@ class Workspace:
     def current(self, incident_id: uuid.UUID) -> tuple[Attachment, ...]:
         return tuple(link for link in self.history(incident_id) if link.superseded_by is None)
 
+    def attachment_note(self, link: Attachment) -> str | None:
+        if link.superseded_by is None:
+            return None
+        successor = next(row for row in self.history(link.incident_id) if row.link_id == link.superseded_by)
+        return f"this revision is superseded by {successor.import_id}"
+
     def attach(self, incident_id: uuid.UUID, relative_bundle: str, reviewer: str) -> tuple[Attachment, ...]:
         self._enabled()
         if not reviewer.strip():

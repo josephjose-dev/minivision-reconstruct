@@ -24,6 +24,6 @@ http://localhost:8080, http://127.0.0.1:8080 {
 		reverse_proxy 127.0.0.1:8000
 	}
 	handle_errors {
-		respond "Reconstruction tools are not running. Start the local tools and retry." 503
+		respond "A local service is not running. Start the app and reconstruction tools, then retry." 503
 	}
 }

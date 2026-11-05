@@ -69,3 +69,19 @@ def test_combined_groups_keep_citations_native_and_exclude_unresolved_proposals(
     assert combined[0].rows[1].row.view_id == "b"
     panels["b"] = SimpleNamespace(groups=(TimelineGroup(groups_b[0].rows, True),))
     assert combined_groups(panels, alignments) == ()
+
+
+def test_same_view_overlap_keeps_native_order_without_cross_camera_label() -> None:
+    from types import SimpleNamespace
+
+    from incident_report.reconstruction.alignment import Alignment, combined_groups
+    from incident_report.reconstruction.timeline import timeline_groups
+
+    moments = tuple(
+        SimpleNamespace(view_id=v, timestamp_seconds=t, text=str(t)) for v, t in (("a", 2.0), ("a", 1.0), ("b", 20.0))
+    )
+    panels = {v: SimpleNamespace(groups=timeline_groups(None, "", v, moments)) for v in ("a", "b")}
+    alignments = tuple(Alignment(v, "a", 0.0, 2.0, "reviewer_estimated", "r", "reason") for v in panels)
+    groups = combined_groups(panels, alignments)
+    assert all(not group.order_unresolved for group in groups)
+    assert [a.row.source_time for g in groups for a in g.rows if a.row.view_id == "a"] == [1.0, 2.0]

@@ -184,12 +184,13 @@ def _source(
         )
         if mapped.kind == "sequence" and (mapped.peak_time is None or mapped.covering_frames is None):
             values["needs_review"] = True
-            issues.emit(
-                "needs_review",
-                f"needs_review: sequence {mapped.event_id} window contains no source frame"
-                if mapped.covering_frames is None
-                else f"needs_review: sequence {mapped.event_id} has unresolved source time",
-            )
+            if mapped.time_window == (None, None):
+                problem = "invalid source-time interval"
+            elif mapped.covering_frames is None:
+                problem = "window contains no source frame"
+            else:
+                problem = "has unresolved source time"
+            issues.emit("needs_review", f"needs_review: sequence {mapped.event_id} {problem}")
         records.append(
             NormalizedRecord(
                 record_id=identity(*prefix, path, token),

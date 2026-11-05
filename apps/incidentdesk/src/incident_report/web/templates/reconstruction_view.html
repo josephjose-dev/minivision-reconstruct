@@ -18,7 +18,7 @@
   {% endif %}
   {% if item.needs_review %}<span>Needs review</span>{% endif %}
   {% if item.reviewer %}<p>Reconstruction reviewer: {{ item.reviewer }}. Reason: {{ item.reason }}</p>{% endif %}
-  {% for state in item.track_states %}<span class="meta">Track evidence: {{ state }}</span>{% endfor %}
+  {% for state in item.track_states %}<span class="meta">Track evidence: {{ state }} at some point in this clip</span>{% endfor %}
 </li>{% endfor %}</ul></li>
 {% else %}<li>No cited events available for this view.</li>{% endfor %}
 </ul>

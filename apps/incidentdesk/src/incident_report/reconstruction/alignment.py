@@ -104,6 +104,14 @@ class AlignedGroup:
     order_unresolved: bool
 
 
+def _aligned_groups(reference: str, rows: list[AlignedRow]) -> tuple[AlignedGroup, ...]:
+    # Offset uncertainty compares cameras, not two moments on the same native clock.
+    native_order = tuple(sorted(rows, key=lambda r: r.aligned_time))
+    if len({r.row.view_id for r in rows}) == 1:
+        return tuple(AlignedGroup(reference, (row,), False) for row in native_order)
+    return (AlignedGroup(reference, native_order, True),)
+
+
 def combined_groups(panels: Mapping[str, Panel], alignments: tuple[Alignment, ...]) -> tuple[AlignedGroup, ...]:
     latest = {a.view: a for a in alignments}
     references: dict[str, list[AlignedRow]] = {}
@@ -119,20 +127,21 @@ def combined_groups(panels: Mapping[str, Panel], alignments: tuple[Alignment, ..
                     references.setdefault(alignment.reference, []).append(
                         AlignedRow(row, row.source_time + alignment.offset, alignment.uncertainty)
                     )
-    result = []
+    result: list[AlignedGroup] = []
     for reference, rows in sorted(references.items()):
         if len({r.row.view_id for r in rows}) < 2:
             continue
         rows.sort(key=lambda r: r.aligned_time - r.uncertainty)
         pending: list[AlignedRow] = []
+
         upper = float("-inf")
         for aligned in rows:
             lower = aligned.aligned_time - aligned.uncertainty
             if pending and lower > upper:
-                result.append(AlignedGroup(reference, tuple(pending), len(pending) > 1))
+                result.extend(_aligned_groups(reference, pending))
                 pending = []
             pending.append(aligned)
             upper = max(upper, aligned.aligned_time + aligned.uncertainty)
         if pending:
-            result.append(AlignedGroup(reference, tuple(pending), len(pending) > 1))
+            result.extend(_aligned_groups(reference, pending))
     return tuple(result)

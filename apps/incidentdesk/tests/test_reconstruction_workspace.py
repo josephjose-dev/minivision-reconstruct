@@ -123,7 +123,13 @@ def test_superseded_mapping_requires_explicit_reconfirmation(
         assert len(mapping_history(workspace, incident)) == 2
 
 
-def test_revision_supersedes_without_changing_original(database_url: str, incident: uuid.UUID, tmp_path: Path) -> None:
+def test_revision_supersedes_without_changing_original(
+    database_url: str,
+    incident: uuid.UUID,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     import hashlib
     import shutil
 
@@ -145,7 +151,44 @@ def test_revision_supersedes_without_changing_original(database_url: str, incide
         assert old.import_id != new.import_id
         assert workspace.current(incident) == (new,)
         assert workspace.history(incident)[0].superseded_by == new.link_id
+        reattached = workspace.attach(incident, "one", "reviewer")[0]
+        assert reattached == workspace.history(incident)[0]
+        assert workspace.attachment_note(reattached) == f"this revision is superseded by {new.import_id}"
         assert workspace.decision(old.import_id).raw_artifacts["bundle.json"] == (root / "one/bundle.json").read_bytes()
+    from incident_report.domain import Report, ReportView, Role
+    from incident_report.reconstruction.cli import main
+    from incident_report.reconstruction.presentation import context
+    from incident_report.web.templating import build_environment
+
+    monkeypatch.setenv("INCIDENTDESK_RECONSTRUCTION", "true")
+    monkeypatch.setenv("INCIDENTDESK_EVIDENCE_EXPORTS_ROOT", str(root))
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    assert main(["attach", "--incident", str(incident), "--attached-by", "reviewer", "one"]) == 0
+    assert json.loads(capsys.readouterr().out)[0]["note"] == f"this revision is superseded by {new.import_id}"
+    report = Report(
+        run_id=incident,
+        input_hash="a" * 64,
+        prompt_version="synthetic",
+        provenance="synthetic",
+        summary="Synthetic",
+        views=(
+            ReportView(
+                filename="source.mp4",
+                role=Role.EXTERIOR,
+                label="Front",
+                acquisition_method=None,
+                sha256=old.view_sha256,
+            ),
+        ),
+    )
+    with psycopg.connect(database_url) as conn:
+        workspace = Workspace(conn, ReconstructionSettings(True, root))
+        html = (
+            build_environment()
+            .get_template("review_timeline.html")
+            .render(report=report, **context(workspace, report, workspace.settings))
+        )
+        assert f"this revision is superseded by {new.import_id}" in html
     assert before == {
         p.relative_to(root / "one").as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
         for p in (root / "one").rglob("*")

@@ -34,6 +34,9 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
         links = tuple(link for link in current if link.view_sha256 == view.sha256)
         groups = list(timeline_groups(None, "", view.sha256, report.storyline))
         notices = []
+        for previous in workspace.history(report.run_id):
+            if previous.view_sha256 == view.sha256 and previous.superseded_by is not None:
+                notices.append(f"Imported revision {previous.import_id}: {workspace.attachment_note(previous)}")
         selections = []
         tracks: list[TrackOption] = []
         for link in links:

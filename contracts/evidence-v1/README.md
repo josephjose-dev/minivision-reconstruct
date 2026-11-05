@@ -57,7 +57,7 @@ on Windows; UNC/device paths, symlinks, junctions, linked ancestors and special 
 are refused. Supply a stable directory; this is not an OS sandbox against another
 process concurrently replacing filesystem ancestors.
 
-Versioning: contract `1.0`, importer `1.2.0`. Unknown contract or producer schema
+Versioning: contract `1.0`, importer `1.4.0`. Unknown contract or producer schema
 versions reject rather than guessing compatibility. Regenerate schemas from the
 Pydantic models when the reviewed contract changes. No existing app behavior or
 fault engine is connected to this module.
@@ -157,3 +157,8 @@ Importer 1.4.0 adds optional `class_name` to the typed track reference, copied f
 the producer observation, for the unmapped-track display. Historical records without
 this field remain readable as unknown class; they must be re-imported to gain it.
 Track associations remain reviewer-set display data, separate from fault and AI.
+
+Diagnostic mapping: both "missing source bindings" and "assessment parent event
+missing" emit `upstream_artifacts_missing`. These are missing-input states, never
+evidence of no incident. Reversed or wrong-length sequence windows quarantine only
+that row, retain its raw window in `original`, and expose unknown normalized bounds.

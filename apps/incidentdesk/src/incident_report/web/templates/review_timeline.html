@@ -1,4 +1,4 @@
-{% if reconstruction_unavailable and not print_view %}<p class="alert" role="status">{{ reconstruction_unavailable }}</p>{% endif %}<section aria-label="Cited timeline">
+{% if reconstruction_unavailable and not print_view %}<div class="reconstruction-only"><p class="alert" role="status">{{ reconstruction_unavailable }}</p></div>{% endif %}<section aria-label="Cited timeline">
   <h2>Cited timeline</h2>
   <p class="meta">Jump list of the cited moments listed under What happened, each on its own view's clock. Candidate collisions remain observations for review.</p>
   {% for view in report.views %}
