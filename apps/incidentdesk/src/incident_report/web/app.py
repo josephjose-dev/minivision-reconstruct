@@ -76,6 +76,7 @@ from incident_report.web.access import (
 )
 from incident_report.web.body_limit import BodyTooLargeError, read_limited_body
 from incident_report.web.decisions import decision_context, install_decisions
+from incident_report.web.native_tools import install_native_tools
 from incident_report.web.questions import install_questions
 from incident_report.web.reconstruction import install_reconstruction, reconstruction_context
 from incident_report.web.review import accessible_report, install_review
@@ -690,6 +691,7 @@ def create_app(
     install_review(app, log, evidence)
     install_decisions(app, log, error_page)
     install_reconstruction(app, log, error_page, reconstruction_settings)
+    install_native_tools(app, log, error_page, reconstruction_settings)
 
     @app.post("/reports/{run_id}/retry")
     async def retry_report(request: Request, run_id: uuid.UUID, background_tasks: BackgroundTasks) -> Response:
