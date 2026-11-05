@@ -95,6 +95,86 @@ def test_real_proposals_have_citations_and_origin() -> None:
     assert any(group.order_unresolved for group in groups)
 
 
+def test_real_multi_track_events_keep_distinct_tool_labels_and_all_participants(database_url: str) -> None:
+    import uuid
+
+    import psycopg
+
+    from incident_report.domain import Report, ReportView, Role
+    from incident_report.facts import OverviewFacts, PartyFact
+    from incident_report.reconstruction.config import ReconstructionSettings
+    from incident_report.reconstruction.mapping import map_track
+    from incident_report.reconstruction.presentation import context
+    from incident_report.reconstruction.store import Workspace
+
+    decision = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert decision.envelope is not None
+    sha = decision.envelope.sources[0].original_video_sha256
+    identifier = uuid.uuid4()
+    report = Report(
+        run_id=identifier,
+        input_hash="a" * 64,
+        prompt_version="synthetic",
+        provenance="synthetic",
+        summary="Synthetic",
+        views=(
+            ReportView(filename="source.avi", role=Role.EXTERIOR, label="Front", acquisition_method=None, sha256=sha),
+        ),
+        facts=OverviewFacts(
+            parties=[
+                PartyFact(
+                    description="Synthetic white Toyota sedan",
+                    party_code="P1",
+                    view_id=sha,
+                    timestamp_seconds=0.0,
+                    confidence=1.0,
+                )
+            ],
+            events=[],
+            candidate_collisions=[],
+            behaviour_observations=[],
+            location_conditions=[],
+        ),
+    )
+    settings = ReconstructionSettings(True, FIXTURES)
+    with psycopg.connect(database_url) as conn:
+        conn.execute(
+            "INSERT INTO runs(run_id,origin,created_at,input_hash,report,status,total_latency_ms) VALUES (%s,'replay',now(),%s,%s::jsonb,'succeeded',0)",
+            (identifier, report.input_hash, report.model_dump_json()),
+        )
+        workspace = Workspace(conn, settings)
+        workspace.attach(identifier, "mig02-multi-review", "synthetic reviewer")
+        panel = context(workspace, report, settings)["reconstruction"][sha]
+        assert {track.track_id for track in panel.tracks} == {1, 2, 3, 4}
+        assert len({track.label for track in panel.tracks}) == 4
+        for track in panel.tracks:
+            assert f"tool track identifier {track.track_id}" in track.label
+            assert track.label.startswith("Unmapped reconstruction track (")
+        collision = next(
+            row for group in panel.groups for row in group.rows if row.text.startswith("Possible collision")
+        )
+        assert len(collision.track_refs) == 2
+        assert collision.text.count("Unmapped reconstruction track (") == 2
+        labels = {track.track_ref: track.label for track in panel.tracks}
+        assert all(labels[ref] in collision.text for ref in collision.track_refs)
+        for track in panel.tracks:
+            if track.track_ref in collision.track_refs:
+                map_track(
+                    workspace,
+                    identifier,
+                    track.import_id,
+                    sha,
+                    track.track_ref,
+                    "map",
+                    "P1",
+                    "synthetic reviewer",
+                    "synthetic display test",
+                )
+        mapped_panel = context(workspace, report, settings)["reconstruction"][sha]
+        mapped_collision = next(row for group in mapped_panel.groups for row in group.rows if row.key == collision.key)
+        assert mapped_collision.text.count("Synthetic white Toyota sedan") == 2
+
+
 def test_rejected_proposal_never_gets_confirmed_badge(tmp_path: Path) -> None:
     decision = inspect_bundle(synthetic_bundle(tmp_path, rejected=True))
     assert decision.envelope is not None

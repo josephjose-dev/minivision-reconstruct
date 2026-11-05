@@ -60,10 +60,8 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
                                 + (
                                     " — "
                                     + "; ".join(
-                                        dict.fromkeys(
-                                            labels.get(ref, "Unmapped reconstruction track (unknown)")
-                                            for ref in row.track_refs
-                                        )
+                                        labels.get(ref, "Unmapped reconstruction track (unknown)")
+                                        for ref in row.track_refs
                                     )
                                     if row.track_refs
                                     else ""

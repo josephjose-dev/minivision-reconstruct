@@ -102,7 +102,8 @@ def track_options(workspace: Workspace, incident_id: uuid.UUID, link: Attachment
             TrackOption(
                 ref,
                 track.track_id,
-                label or f"Unmapped reconstruction track ({track.class_name or 'unknown'})",
+                label
+                or f"Unmapped reconstruction track ({track.class_name or 'unknown'}, tool track identifier {track.track_id})",
                 latest.action if latest else "unmapped",
                 link.import_id,
                 parties,
