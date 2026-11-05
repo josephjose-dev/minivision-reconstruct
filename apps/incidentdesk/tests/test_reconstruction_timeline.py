@@ -127,6 +127,35 @@ def test_modified_unknown_time_never_cites_original_frame(tmp_path: Path) -> Non
     assert "unknown — no frame citation" in html
 
 
+def test_modified_status_without_overlay_never_cites_original_frame() -> None:
+    from types import SimpleNamespace
+
+    from incident_report.web.templating import build_environment
+
+    original = inspect_bundle(FIXTURES / "mig02-relative")
+    decision = original.model_copy(
+        update={
+            "records": tuple(
+                r.model_copy(update={"producer_status": "MODIFIED_BY_REVIEWER"}) if r.kind == "event_proposal" else r
+                for r in original.records
+                if r.kind != "review_overlay"
+            )
+        }
+    )
+    assert decision.envelope is not None
+    source = decision.envelope.sources[0]
+    groups = timeline_groups(decision, source.view_id, source.original_video_sha256, ())
+    rows = [r for g in groups for r in g.rows]
+    assert rows and all(r.source_frame is None and r.source_time is None and r.needs_review for r in rows)
+    html = (
+        build_environment()
+        .get_template("reconstruction_view.html")
+        .render(panel=SimpleNamespace(groups=groups, notices=(), links=()), print_view=False, review_workspace=True)
+    )
+    assert "corrected time unknown — no frame citation" in html
+    assert "data-seconds=" not in html
+
+
 def test_seek_controls_only_appear_with_the_existing_player() -> None:
     from types import SimpleNamespace
 

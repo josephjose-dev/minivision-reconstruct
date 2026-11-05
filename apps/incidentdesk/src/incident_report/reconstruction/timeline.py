@@ -87,8 +87,13 @@ def timeline_groups(
         event = record.data
         overlay = overlays.get((record.artifact_path, event.event_id))
         review = overlay.data if overlay is not None and isinstance(overlay.data, ReviewFields) else None
-        modified = review is not None and review.action == "modify"
-        citation = overlay if modified else record
+        modified = record.producer_status == "MODIFIED_BY_REVIEWER" or (
+            review is not None and review.action == "modify"
+        )
+        if modified:
+            citation = overlay if review is not None and review.action == "modify" else None
+        else:
+            citation = record
         rows.append(
             TimelineRow(
                 record.record_id,
@@ -100,7 +105,7 @@ def timeline_groups(
                 "Reconstruction proposal",
                 REVIEW_LABELS.get(record.producer_status or "", "Review status unavailable"),
                 record.producer_status == "REJECTED_BY_REVIEWER",
-                record.needs_review or (overlay.needs_review if overlay else False),
+                record.needs_review or (overlay.needs_review if overlay else False) or (modified and citation is None),
                 event.peak_time,
                 review.modified_peak_time if review else None,
                 review.reviewer if review else None,

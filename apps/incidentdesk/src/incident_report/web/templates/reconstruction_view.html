@@ -14,7 +14,7 @@
   {% if item.source_time is not none %}{% if review_workspace %}<button type="button" data-view-id="{{ item.view_id }}" data-seconds="{{ item.source_time }}">{{ '%.3f'|format(item.source_time) }} s</button>{% else %}<span class="citation">{{ '%.3f'|format(item.source_time) }} s</span>{% endif %}{% else %}<span>Source time unavailable</span>{% endif %}
   {% if item.source_frame is not none %}<span class="meta">Source frame {{ item.source_frame }}</span>{% endif %}
   {% if item.review_status == 'Modified by reconstruction reviewer' %}
-  <p>Original proposal: {{ item.original_time }} s. Requested correction: {{ item.requested_time }} s. Effective cited time: {{ item.source_time if item.source_time is not none else 'unknown — no frame citation' }}.</p>
+  <p>Original proposal: {{ item.original_time }} s. Requested correction: {{ item.requested_time }} s. Effective cited time: {{ item.source_time if item.source_time is not none else 'corrected time unknown — no frame citation' }}.</p>
   {% endif %}
   {% if item.needs_review %}<span>Needs review</span>{% endif %}
   {% if item.reviewer %}<p>Reconstruction reviewer: {{ item.reviewer }}. Reason: {{ item.reason }}</p>{% endif %}
