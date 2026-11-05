@@ -507,3 +507,77 @@ def test_scripted_exports_with_labelled_synthetic_saved_facts(name: str, expecte
         r.state not in {"agree", "disagree_time", "tracker_miss"}
         for r in compare_view(d, s.view_id, s.original_video_sha256, other_view, {})
     )
+
+
+@pytest.mark.parametrize(
+    "name,time,value,expected",
+    [
+        ("mig02-001-07-occluded-impact", 10.0, "moving", "cannot_compare"),
+        ("mig02-001-07-occluded-impact", 10.0, "stopped_in_lane", "cannot_compare"),
+        ("mig02-001-07-occluded-impact", 10.72, "moving", "cannot_compare"),
+        ("mig02-001-07-occluded-impact", 9.28, "moving", "agree"),
+        ("mig02-relative", 3.08, "moving", "cannot_compare"),
+        ("mig02-relative", 3.08, "stopped_in_lane", "cannot_compare"),
+        ("mig02-relative", 3.2, "stopped_in_lane", "cannot_compare"),
+        ("mig02-relative", 2.88, "stopped_in_lane", "agree"),
+    ],
+)
+def test_motion_needs_observation_and_no_gap(name: str, time: float, value: str, expected: str) -> None:
+    from incident_report.evidence_import.payloads import TrackFields
+    from incident_report.facts import StructuredFact
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / name)
+    assert d.envelope
+    s = d.envelope.sources[0]
+    ref = next(r.track_refs[0] for r in d.records if isinstance(r.data, TrackFields) and r.data.track_id == 1)
+    if name == "mig02-relative":
+        # Synthetic saved-import variation: explicit stop before the unchanged interpolation span.
+        d = d.model_copy(
+            update={
+                "records": tuple(
+                    r.model_copy(
+                        update={
+                            "source_time": 2.8,
+                            "source_frame": 70,
+                            "data": r.data.model_copy(update={"peak_time": 2.8}),
+                        }
+                    )
+                    if isinstance(r.data, EventFields) and r.data.event_type == "stop" and ref in r.track_refs
+                    else r
+                    for r in d.records
+                )
+            }
+        )
+    party = PartyFact(
+        description="Synthetic white Toyota sedan",
+        party_code="P1",
+        view_id=s.original_video_sha256,
+        timestamp_seconds=0.0,
+        confidence=1.0,
+    )
+    contact = CollisionObservation(
+        kind="contact_other",
+        subject=party.description,
+        other_party="barrier",
+        injury_grade="unknown",
+        timestamp_seconds=11.0,
+        view_id=s.original_video_sha256,
+        confidence=1.0,
+    )
+    fact = StructuredFact(
+        subject=party.description,
+        field="motion_state_before_contact",
+        value=value,
+        other_party="",
+        view_id=s.original_video_sha256,
+        timestamp_seconds=time,
+        confidence=1.0,
+    )
+    f = saved_facts(s.original_video_sha256, 10.8, 11.2).model_copy(
+        update={"parties": [party], "collision_observations": [contact], "structured_facts": [fact]}
+    )
+    row = next(r for r in compare_view(d, s.view_id, s.original_video_sha256, f, {ref: "P1"}) if r.item == "Motion")
+    assert row.state == expected
+    if expected == "cannot_compare":
+        assert row.reason == f"reconstruction has no observation of {party.description} at this time"

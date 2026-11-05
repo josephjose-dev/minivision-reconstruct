@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass, replace
 
-from incident_report.evidence_import.models import ImportDecision
-from incident_report.evidence_import.payloads import EventFields
+from incident_report.evidence_import.models import ImportDecision, NormalizedRecord
+from incident_report.evidence_import.payloads import EventFields, TrackFields
 from incident_report.facts import OverviewFacts
 
 from .timeline import TimelineRow, timeline_groups
@@ -11,6 +11,22 @@ from .timeline import TimelineRow, timeline_groups
 
 def _uncertain(row: TimelineRow, decision: ImportDecision) -> bool:
     return row.needs_review or row.key in decision.quarantined_records
+
+
+def _frame_at(time: float, records: tuple[NormalizedRecord, ...], decision: ImportDecision) -> int | None:
+    table = sorted(
+        (r.source_time, r.source_frame)
+        for r in records
+        if r.kind == "source_binding"
+        and r.source_time is not None
+        and r.source_frame is not None
+        and not r.needs_review
+        and r.record_id not in decision.quarantined_records
+    )
+    for (start, frame), (end, _) in zip(table, table[1:], strict=False):
+        if start <= time < end:
+            return frame
+    return table[-1][1] if table and time == table[-1][0] else None
 
 
 CONTACT_KINDS = {"vehicle_contact_vehicle", "vehicle_struck_pedestrian", "contact_other"}
@@ -109,23 +125,7 @@ def compare_view(
             else:
                 # Half-open intervals between consecutive saved presentation timestamps.
                 # No inferred FPS, nearest-frame tolerance, or extrapolation past the table.
-                table = sorted(
-                    (r.source_time, r.source_frame)
-                    for r in records
-                    if r.kind == "source_binding"
-                    and r.source_time is not None
-                    and r.source_frame is not None
-                    and not r.needs_review
-                    and r.record_id not in decision.quarantined_records
-                )
-
-                def frame_at(time: float, table: list[tuple[float, int]]) -> int | None:
-                    for (start, frame), (end, _) in zip(table, table[1:], strict=False):
-                        if start <= time < end:
-                            return frame
-                    return table[-1][1] if table and time == table[-1][0] else None
-
-                frames = [frame_at(t, table) for t in times]
+                frames = [_frame_at(t, records, decision) for t in times]
                 if not any(frame is not None for frame in frames):
                     output.append(result(row, "cannot_compare", "Video timestamp has no saved source-frame interval"))
                     continue
@@ -320,8 +320,35 @@ def _motion_context(
                 and (r.source_time is None or r.source_frame is None or _uncertain(r, decision))
                 for r in all_movements
             )
+            records = tuple(r for r in decision.records if r.view_id == source_view)
+            frame = _frame_at(time, records, decision)
+            observations = [
+                r for r in records if isinstance(r.data, TrackFields) and len(refs) == 1 and refs[0] in r.track_refs
+            ]
+            observed = frame is not None and any(
+                r.source_frame == frame
+                and isinstance(r.data, TrackFields)
+                and r.data.state in {"observed", "recovered"}
+                and not r.needs_review
+                and r.record_id not in decision.quarantined_records
+                for r in observations
+            )
+            gap = (
+                cited is None
+                or cited.source_frame is None
+                or frame is None
+                or any(
+                    isinstance(r.data, TrackFields)
+                    and r.data.state in {"lost", "interpolated"}
+                    and r.source_frame is not None
+                    and cited.source_frame <= r.source_frame <= frame
+                    for r in observations
+                )
+            )
+            coverage = observed and not gap
             valid = (
-                not barrier
+                coverage
+                and not barrier
                 and boundaries
                 and not decision.missing_inputs
                 and len(refs) == 1
@@ -333,7 +360,11 @@ def _motion_context(
                 Comparison(
                     "Motion",
                     state,
-                    f"{party.description}: reconstruction {actual or 'unknown'}; video analysis {fact.value}",
+                    (
+                        f"reconstruction has no observation of {party.description} at this time"
+                        if not coverage
+                        else f"{party.description}: reconstruction {actual or 'unknown'}; video analysis {fact.value}"
+                    ),
                     view_sha,
                     cited.source_time if cited else None,
                     cited.source_frame if cited else None,
