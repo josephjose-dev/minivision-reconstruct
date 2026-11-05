@@ -251,6 +251,11 @@ def test_motion_at_fact_timestamp_and_missing_precontact(value: str, expected: s
     missed = f.model_copy(update={"collision_observations": [contact]})
     rows = compare_view(no_candidates, s.view_id, s.original_video_sha256, missed, maps)
     assert any(r.item == "Pre-contact context" for r in rows)
+    own_later = contact.model_copy(update={"timestamp_seconds": 8.0})
+    unrelated = contact.model_copy(update={"subject": "Synthetic red Honda coupe", "timestamp_seconds": 2.0})
+    separate = missed.model_copy(update={"collision_observations": [own_later, unrelated]})
+    rows = compare_view(no_candidates, s.view_id, s.original_video_sha256, separate, maps)
+    assert not any(r.item == "Pre-contact context" for r in rows)
 
 
 def test_cross_check_context_render_is_offline_escaped_and_print_invariant(

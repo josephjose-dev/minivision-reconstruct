@@ -266,8 +266,13 @@ def _motion_context(
             ),
             None,
         )
+        party_video_times = tuple(
+            c.timestamp_seconds for c in video_contacts if party.description in {c.subject, c.other_party}
+        )
+        if not video_contacts and len(candidates) == 1:
+            party_video_times = video_times
         video_late = next(
-            (r for r in first if r.source_time is not None and any(r.source_time >= t for t in video_times)), None
+            (r for r in first if r.source_time is not None and any(r.source_time >= t for t in party_video_times)), None
         )
         late = late or video_late
         missing = any("calibration" in c or "timestamp" in c for c in decision.missing_inputs)
@@ -282,7 +287,7 @@ def _motion_context(
                     view_sha,
                     citation.source_time if citation else None,
                     citation.source_frame if citation else None,
-                    video_times,
+                    party_video_times or video_times,
                     citation.review_status if citation else "Review status unavailable",
                 )
             )
