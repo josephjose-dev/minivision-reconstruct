@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from incident_report.evidence_import.models import ImportDecision
-from incident_report.evidence_import.persistence import import_bundle, load_import
+from incident_report.evidence_import.persistence import load_import, persist_inspection
+from incident_report.evidence_import.reader import inspect_bundle
 
 from .config import ReconstructionSettings
 from .paths import bundle_path
@@ -76,15 +77,25 @@ class Workspace:
         if root is None:
             raise WorkspaceRefused("Evidence exports root is not configured")
         directory = bundle_path(root, relative_bundle)
-        # Persist inspection before the independent attachment transaction, including refusals.
+        # Inspect once, then validate the exact snapshot before any import write.
+        inspected = inspect_bundle(directory)
         with self.connection.transaction():
-            self._incident(incident_id)
-        decision = import_bundle(directory, self.connection)
+            incident = self._incident(incident_id)
+            interior = {v["sha256"] for v in incident["views"] if v.get("role") == "interior"}
+            if inspected.envelope and any(s.original_video_sha256 in interior for s in inspected.envelope.sources):
+                raise WorkspaceRefused("reconstruction applies to road views only")
+            decision = persist_inspection(inspected, self.connection)
         if decision.provenance_state == "rejected" or decision.envelope is None:
             raise WorkspaceRefused("Rejected exports cannot be attached")
         with self.connection.transaction():
             incident = self._incident(incident_id)
             sources = decision.envelope.sources
+            if any(
+                v.get("role") == "interior" and v["sha256"] == s.original_video_sha256
+                for v in incident["views"]
+                for s in sources
+            ):
+                raise WorkspaceRefused("reconstruction applies to road views only")
             views = {view["sha256"] for view in incident["views"]}
             if not sources or any(s.original_video_sha256 not in views for s in sources):
                 raise WorkspaceRefused("this export is for a different video")
