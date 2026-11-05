@@ -9,6 +9,7 @@ from .alignment import RELIABILITIES, combined_groups
 from .alignment import history as alignment_history
 from .config import ReconstructionSettings
 from .cross_check import Comparison, compare_view
+from .driver_context import driver_panels
 from .mapping import Mapping, TrackOption, mapping_history, track_options
 from .paths import list_bundles
 from .store import Attachment, Workspace
@@ -109,6 +110,7 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
         )
     alignments = alignment_history(workspace, report.run_id)
     return {
+        "driver_context": driver_panels(report),
         "reconstruction": panels,
         "reconstruction_disagreements": {
             view: tuple(

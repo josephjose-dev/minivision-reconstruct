@@ -1,0 +1,10 @@
+<section class="reconstruction-only" aria-label="Interior driver timeline">
+<h4>Interior driver timeline</h4>
+<p>Own view clock — {{ view.label or view.filename }} <span class="meta">(SHA-256 {{ view.sha256 }})</span></p>
+{% for assessment in driver_panel.assessments %}
+<p><bdi dir="auto">{{ assessment.party_description }}</bdi>: phone use {{ assessment.phone_use }}. <span class="meta">{{ assessment.reason }}</span></p>
+{% endfor %}
+<ul>{% for observation in driver_panel.observations %}
+<li><span class="meta">Video analysis driver observation</span> · {{ observation.kind | replace('_', ' ') }} · <bdi dir="auto">{{ observation.subject }}</bdi> · {{ '%.3f'|format(observation.start_seconds) }}–{{ '%.3f'|format(observation.end_seconds) }} s.</li>
+{% else %}<li>No driver observations available for this view.</li>{% endfor %}</ul>
+</section>

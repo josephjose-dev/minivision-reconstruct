@@ -11,6 +11,7 @@
     <li>No cited events available for this view.</li>
     {% endfor %}
   </ul>{% endif %}
+  {% if driver_context and not print_view and view.sha256 in driver_context %}{% set driver_panel = driver_context[view.sha256] %}{% include 'reconstruction_driver_context.html' %}{% endif %}
   {% endfor %}
 {% if reconstruction and not print_view %}
   <div class="reconstruction-only">
