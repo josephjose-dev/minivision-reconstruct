@@ -498,8 +498,9 @@ def test_invalid_driver_context_flag_refuses_startup(flag: str, monkeypatch: pyt
         create_app(ai=ReplayAIConnection(), run_log=RunLog("not-a-database"))
 
 
+@pytest.mark.parametrize("aligned", [False, True])
 def test_driver_context_http_flags_preserve_fault_driver_and_print(
-    run_log: "RunLog", driver_report: Report, tmp_path: "Path", monkeypatch: pytest.MonkeyPatch
+    run_log: "RunLog", driver_report: Report, tmp_path: "Path", monkeypatch: pytest.MonkeyPatch, aligned: bool
 ) -> None:
     import re
     from datetime import UTC, datetime
@@ -547,6 +548,27 @@ def test_driver_context_http_flags_preserve_fault_driver_and_print(
         )
     )
     saved = report.model_dump_json()
+    if aligned:
+        from incident_report.reconstruction.alignment import Alignment, record_alignment
+        from incident_report.reconstruction.config import ReconstructionSettings
+        from incident_report.reconstruction.store import Workspace
+
+        with psycopg.connect(run_log.database_url) as conn:
+            workspace = Workspace(conn, ReconstructionSettings(True, FIXTURES, driver_context_enabled=True))
+            workspace.attach(report.run_id, "mig02-multi-review", "Synthetic timing reviewer")
+            record_alignment(
+                workspace,
+                report.run_id,
+                Alignment(
+                    "b" * 64,
+                    report.views[0].sha256,
+                    1.0,
+                    0.5,
+                    "reviewer_estimated",
+                    "Synthetic timing reviewer",
+                    "Synthetic aligned fixture, not Gemini output",
+                ),
+            )
     baseline = None
     client = None
     url = f"/reports/{report.run_id}"
@@ -565,7 +587,15 @@ def test_driver_context_http_flags_preserve_fault_driver_and_print(
         assert ("Interior driver timeline" in page.text) is (reconstruction and driver)
         assert ("Interior driver timeline" in review.text) is (reconstruction and driver)
         if reconstruction and driver:
-            assert "Clocks not aligned; no timing relation shown" in page.text
+            if aligned:
+                for html in (page.text, review.text):
+                    assert "aligned 5.000–9.000 s" in html
+                    assert "Reconstruction candidate peak: 6.080 s, source frame 152" in html
+                    assert "uncertainty ±0.5 s. Reviewer: Synthetic timing reviewer" in html
+                    assert "overlaps contact time" in html
+                    assert "Clocks not aligned; no timing relation shown" not in html
+            else:
+                assert "Clocks not aligned; no timing relation shown" in page.text
         parts = []
         for pattern in [
             r'<section data-report-section="parties".*?</section>',
