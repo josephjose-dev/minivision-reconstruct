@@ -100,3 +100,34 @@ print HTML invariant. All previous assertions are retained.
 Focused Round 2 suite: 52 passed in 52.37s; final 13-check gate evidence is in the
 donor result's Round 2 section. Native scoped Standards/Spec checks prepare the
 handoff only. Claude independently reruns the gate and browser smoke before merge.
+
+## Round 3 — unique contact matching and conservative extra evidence
+
+MEDIUM-1 supersedes R2's exact-timestamp party match: once contact time agrees,
+match the unique same-view typed contact within the agreed assessment interval, or
+(no interval) resolving to the same saved source frame. Multiple eligible contacts
+abstain with 'which contact cannot be determined'. Interval and frame tests cover
+nonidentical timestamps, conflicting party pairs (both descriptions shown), and
+ambiguous contacts. The prior negative test moves its contact outside the interval;
+its cannot_compare assertion remains, while new positive cases cover the R3 rule.
+
+LOW-1: when the only other typed contact has uniquely resolved codes matching the
+reviewer's mapped pair (and no other assessment), the row says 'video analysis
+contact times are inconsistent'. State remains cannot_compare, times preserved.
+Unknown/different pair evidence retains the separate-contact ambiguity wording.
+
+LOW-2: if one candidate agrees, another valid mapped non-agreeing candidate becomes
+cannot_compare 'reconstruction reports an additional contact'. It keeps its source
+citation, clears the disagreement delta, and cannot raise the notice through the
+party comparison. Rejected, uncertain or unmapped candidates are not reinterpreted;
+without an agreeing candidate, the original timing disagreement is preserved.
+
+LOW-3: a frame-less lost/interpolated record in the explicit transition-to-fact time
+span blocks motion comparison, inclusive of both endpoints. Unplaceable times block
+conservatively; known outside-span times do not. No frame or time is fabricated.
+Existing native frame checks remain. Constructed test records leave fixture bytes
+unchanged. Focused suite:74 passed in71.81s; full gate evidence is in donor Round3.
+
+Four item commits, no producer path/dependency/fault input changes. Native read-only
+Standards/Spec review is preparation only; Claude owns independent critical review,
+full gate rerun and browser smoke before merge. No merge/push/tag by Codex.

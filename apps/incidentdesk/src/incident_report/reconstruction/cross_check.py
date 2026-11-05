@@ -441,8 +441,17 @@ def _motion_context(
                 or any(
                     isinstance(r.data, TrackFields)
                     and r.data.state in {"lost", "interpolated"}
-                    and r.source_frame is not None
-                    and cited.source_frame <= r.source_frame <= frame
+                    and (
+                        (r.source_frame is not None and cited.source_frame <= r.source_frame <= frame)
+                        or (
+                            r.source_frame is None
+                            and (
+                                r.source_time is None
+                                or cited.source_time is None
+                                or cited.source_time <= r.source_time <= time
+                            )
+                        )
+                    )
                     for r in observations
                 )
             )

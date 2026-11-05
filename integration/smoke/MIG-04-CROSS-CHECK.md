@@ -36,3 +36,17 @@ Claude owns manual browser smoke and independent critical acceptance. No merge/p
 - Parties compare only when contact time agrees and an exact unique typed contact
   matches it. Unverified export provenance always abstains. Missing-input reasons
   are readable. Camera names are primary and hashes secondary metadata.
+
+## Round 3 regression smoke (Claude)
+
+- Interval6.0–6.2, saved contact6.1, reconstruction peak6.08: parties should agree
+  for the mapped pair, or disagree with both descriptions for a different pair.
+  Two eligible contacts6.05/6.15: Cannot compare, which contact cannot be determined.
+  With no interval, same-source-frame timestamps should permit a unique party match.
+- A single outside contact naming the same mapped pair should say video analysis
+  contact times are inconsistent; no notice. Different pairs retain ambiguity.
+- One matching producer candidate plus another valid unmatched candidate: show the
+  latter as an additional reconstruction contact, no timing/party disagreement notice.
+- Verify frame-less lost/interpolated evidence within a motion span abstains. These
+  constructed-record cases are automated fixture tests, not claims about her exports.
+- Retain all prior flag, mapping, source citation, fault/fine and print checks.

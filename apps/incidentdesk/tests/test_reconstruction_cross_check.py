@@ -950,3 +950,62 @@ def test_additional_reconstruction_contact_is_not_disagreement(extra_time: float
     f = saved_facts(s.original_video_sha256, 4.0, 5.0)
     rows = compare_view(d, s.view_id, s.original_video_sha256, f, maps)
     assert next(r for r in rows if r.item == "Contact time" and r.producer_time == 6.08).state == "disagree_time"
+
+
+@pytest.mark.parametrize("state", ["lost", "interpolated"])
+@pytest.mark.parametrize(
+    "gap_time,expected",
+    [
+        (6.6, "cannot_compare"),
+        (6.44, "cannot_compare"),
+        (7.0, "cannot_compare"),
+        (None, "cannot_compare"),
+        (6.3, "agree"),
+        (7.2, "agree"),
+    ],
+)
+def test_frameless_gap_cannot_be_ignored(state: str, gap_time: float | None, expected: str) -> None:
+    from incident_report.evidence_import.payloads import TrackFields
+    from incident_report.facts import StructuredFact
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    observation = next(
+        r for r in d.records if isinstance(r.data, TrackFields) and r.data.track_id == 1 and r.source_time == 7.0
+    )
+    ref = observation.track_refs[0]
+    # Constructed test record, not a rewritten producer fixture or inferred frame.
+    gap = observation.model_copy(
+        update={
+            "record_id": "synthetic-frameless-gap",
+            "source_frame": None,
+            "source_time": gap_time,
+            "data": observation.data.model_copy(update={"state": state}),
+        }
+    )
+    d = d.model_copy(update={"records": d.records + (gap,)})
+    party = PartyFact(
+        description="Synthetic white Toyota sedan",
+        party_code="P1",
+        view_id=s.original_video_sha256,
+        timestamp_seconds=0.0,
+        confidence=1.0,
+    )
+    fact = StructuredFact(
+        subject=party.description,
+        field="motion_state_before_contact",
+        value="stopped_in_lane",
+        other_party="",
+        view_id=s.original_video_sha256,
+        timestamp_seconds=7.0,
+        confidence=1.0,
+    )
+    f = saved_facts(s.original_video_sha256, 6.0, 6.2).model_copy(
+        update={"parties": [party], "structured_facts": [fact]}
+    )
+    row = next(r for r in compare_view(d, s.view_id, s.original_video_sha256, f, {ref: "P1"}) if r.item == "Motion")
+    assert row.state == expected
+    if expected == "cannot_compare":
+        assert row.reason == f"reconstruction has no observation of {party.description} at this time"
