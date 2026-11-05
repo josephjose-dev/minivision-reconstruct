@@ -912,3 +912,41 @@ def test_same_pair_inconsistent_video_times_are_worded_explicitly(same_pair: boo
         assert row.reason == "video analysis contact times are inconsistent"
     else:
         assert row.reason.startswith("video analysis reports another contact at")
+
+
+@pytest.mark.parametrize("extra_time", [3.0, 8.0])
+@pytest.mark.parametrize("valid_extra", [True, False])
+def test_additional_reconstruction_contact_is_not_disagreement(extra_time: float, valid_extra: bool) -> None:
+    from incident_report.reconstruction.cross_check import compare_view
+
+    d = inspect_bundle(FIXTURES / "mig02-multi-review")
+    assert d.envelope
+    s = d.envelope.sources[0]
+    e = next(r for r in d.records if isinstance(r.data, EventFields) and r.data.event_type == "collision_candidate")
+    # Labelled synthetic saved-import variation; immutable producer fixture untouched.
+    extra = e.model_copy(
+        update={
+            "record_id": "synthetic-extra-contact",
+            "source_time": extra_time,
+            "source_frame": int(extra_time * 25),
+            "producer_status": "CONFIRMED_BY_REVIEWER" if valid_extra else "REJECTED_BY_REVIEWER",
+            "data": e.data.model_copy(update={"event_id": "synthetic-extra-contact", "peak_time": extra_time}),
+        }
+    )
+    d = d.model_copy(update={"records": d.records + (extra,)})
+    f = saved_facts(s.original_video_sha256, 6.0, 6.2)
+    maps = dict(zip(e.track_refs, ("P1", "P2"), strict=True))
+    rows = compare_view(d, s.view_id, s.original_video_sha256, f, maps)
+    time_rows = [r for r in rows if r.item == "Contact time"]
+    assert next(r for r in time_rows if r.producer_time == 6.08).state == "agree"
+    additional = next(r for r in time_rows if r.producer_time == extra_time)
+    assert additional.state == "cannot_compare"
+    assert additional.difference_seconds is None
+    if valid_extra:
+        assert additional.reason == "reconstruction reports an additional contact"
+    else:
+        assert "additional contact" not in additional.reason
+    # Without a matching candidate, preserve the original single-contact timing disagreement.
+    f = saved_facts(s.original_video_sha256, 4.0, 5.0)
+    rows = compare_view(d, s.view_id, s.original_video_sha256, f, maps)
+    assert next(r for r in rows if r.item == "Contact time" and r.producer_time == 6.08).state == "disagree_time"

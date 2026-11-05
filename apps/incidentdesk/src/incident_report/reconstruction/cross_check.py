@@ -200,6 +200,24 @@ def compare_view(
             )
         else:
             output.append(result(row, "cannot_compare", "No explicit video analysis contact timing"))
+    if any(comparison.state == "agree" for comparison in output):
+        for index, row in enumerate(rows):
+            valid_candidate = (
+                not row.rejected
+                and not _uncertain(row, decision)
+                and row.source_time is not None
+                and row.source_frame is not None
+                and len(row.track_refs) == 2
+                and all(ref in mappings for ref in row.track_refs)
+                and len({mappings.get(ref) for ref in row.track_refs}) == 2
+            )
+            if valid_candidate and output[index].state != "agree":
+                output[index] = replace(
+                    output[index],
+                    state="cannot_compare",
+                    reason="reconstruction reports an additional contact",
+                    difference_seconds=None,
+                )
     time_states = {row.key: comparison.state for row, comparison in zip(rows, output, strict=True)}
     for row in rows:
         base = result(row, "cannot_compare", "No unique matching contact or current party mapping")
