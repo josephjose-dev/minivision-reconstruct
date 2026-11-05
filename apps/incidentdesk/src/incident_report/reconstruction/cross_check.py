@@ -1,6 +1,6 @@
 """Read-only same-view comparisons; never a source of report facts or fault inputs."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from incident_report.evidence_import.models import ImportDecision
 from incident_report.evidence_import.payloads import EventFields
@@ -106,4 +106,40 @@ def compare_view(
             )
         else:
             output.append(result(row, "cannot_compare", "No explicit video analysis contact timing"))
+    for row in rows:
+        base = result(row, "cannot_compare", "No unique matching contact or current party mapping")
+        matching = [c for c in contacts if c.timestamp_seconds == row.source_time]
+        if not matching and len(contacts) == 1:
+            matching = contacts
+        pair = [mappings.get(ref) for ref in row.track_refs]
+        if (
+            not row.rejected
+            and row.source_time is not None
+            and len(pair) == 2
+            and all(pair)
+            and len(set(pair)) == 2
+            and len(matching) == 1
+        ):
+            contact = matching[0]
+
+            def code(name: str) -> str | None:
+                parties = [p for p in facts.parties if p.view_id == view_sha and p.description == name] if facts else []
+                if len(parties) != 1 or not parties[0].party_code:
+                    return None
+                value = parties[0].party_code
+                return (
+                    value
+                    if facts and sum(p.view_id == view_sha and p.party_code == value for p in facts.parties) == 1
+                    else None
+                )
+
+            video_pair = [code(contact.subject), code(contact.other_party)]
+            known = all(video_pair) and len(set(video_pair)) == 2
+            base = replace(
+                base,
+                state=("agree" if set(pair) == set(video_pair) else "disagree_parties") if known else "cannot_compare",
+                reason=f"Reconstruction party codes: {pair}; video analysis: {contact.subject} / {contact.other_party}",
+                video_times=(contact.timestamp_seconds,),
+            )
+        output.append(replace(base, item="Parties in contact"))
     return tuple(output)
