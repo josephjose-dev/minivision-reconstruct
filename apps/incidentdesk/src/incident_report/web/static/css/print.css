@@ -9,6 +9,16 @@
   margin: 15mm 12mm;
 }
 
+/* Reconstruction remains an on-screen proposal workspace in MIG-03. */
+.reconstruction-only {
+  display: none !important;
+}
+
+/* Keep the app's original cited moments when printing a merged on-screen timeline. */
+.reconstruction-print-fallback[hidden] {
+  display: block !important;
+}
+
 /* Ensure background colours and borders render when printing */
 * {
   -webkit-print-color-adjust: exact;

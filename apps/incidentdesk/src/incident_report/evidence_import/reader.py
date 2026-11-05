@@ -15,6 +15,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from .issues import Issues
 from .models import (
     IMPORTER_VERSION,
     MAX_BUNDLE_BYTES,
@@ -144,13 +145,13 @@ def inspect_bundle(directory: Path) -> ImportDecision:
         hashes = {name: hashlib.sha256(content).hexdigest() for name, content in sorted(raw.items())}
         identity = hashlib.sha256(json.dumps([IMPORTER_VERSION, hashes], sort_keys=True).encode()).hexdigest()
         envelope = Envelope.model_validate(parse_record(raw["bundle.json"]))
-        issues: list[str] = []
+        issues = Issues()
         for name, digest in envelope.artifacts.items():
             safe_path(name)
             if not re.fullmatch(r"[a-f0-9]{64}", digest):
                 raise InvalidBundle("invalid artifact digest")
             if name not in raw:
-                issues.append(f"missing artifact: {name}")
+                issues.emit("upstream_artifacts_missing", f"missing artifact: {name}")
             elif hashes[name] != digest:
                 raise InvalidBundle(f"hash mismatch: {name}")
         if set(raw) - {"bundle.json"} - envelope.artifacts.keys():
@@ -177,10 +178,9 @@ def inspect_bundle(directory: Path) -> ImportDecision:
             expected = envelope.artifacts.get(omission.artifact_path)
             if expected is not None and expected != omission.sha256:
                 raise InvalidBundle("conflicting omitted-derived digests")
-            issues[:] = [i for i in issues if i != f"missing artifact: {omission.artifact_path}"]
-        provenance_issues = [
-            i for i in issues if i != "missing_input: no incident candidates" and not i.startswith("needs_review: ")
-        ]
+            issues.remove_message(f"missing artifact: {omission.artifact_path}")
+        provenance_issues = [code for code in issues.codes if code not in ("no_incident_candidates", "needs_review")]
+
         return ImportDecision(
             read_complete=read_complete,
             importer_version=IMPORTER_VERSION,
@@ -188,6 +188,7 @@ def inspect_bundle(directory: Path) -> ImportDecision:
             not_supplied_derived=tuple(omissions),
             provenance_state="incomplete_provenance" if provenance_issues else "verified",
             issues=tuple(issues),
+            issue_codes=issues.codes,
             records=normalized,
             structurally_accepted_records=tuple(record.record_id for record in normalized if not record.needs_review)
             if not provenance_issues
@@ -207,6 +208,7 @@ def inspect_bundle(directory: Path) -> ImportDecision:
             import_id=identity,
             provenance_state="rejected",
             issues=(f"{type(exc).__name__}: {exc}",),
+            issue_codes=("bundle_rejected",),
             source_hashes=hashes,
             raw_artifacts=raw,
         )

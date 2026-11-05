@@ -8,6 +8,7 @@ import re
 from pathlib import PurePosixPath
 from typing import Any
 
+from .issues import Issues
 from .mapping import payload
 from .models import TIMESTAMP_TOLERANCE_SECONDS, DerivedOmission, Envelope, NormalizedRecord, SourceBinding
 from .reader import InvalidBundle, safe_path
@@ -36,12 +37,12 @@ def normalize(
     envelope: Envelope,
     parsed: dict[str, list[dict[str, Any]]],
     hashes: dict[str, str],
-    issues: list[str],
+    issues: Issues,
     omissions: list[DerivedOmission],
 ) -> tuple[NormalizedRecord, ...]:
     """Hash closure includes every supplied manifest, even older reviewed revisions."""
     if not envelope.sources:
-        issues.append("missing source bindings")
+        issues.emit("upstream_artifacts_missing", "missing source bindings")
     if len({source.view_id for source in envelope.sources}) != len(envelope.sources):
         raise InvalidBundle("duplicate view binding")
     for field in (
@@ -74,7 +75,7 @@ def _closure(
     document: dict[str, Any],
     hashes: dict[str, str],
     by_hash: dict[str, str],
-    issues: list[str],
+    issues: Issues,
     omissions: list[DerivedOmission],
 ) -> None:
     for artifact in document.get("artifacts", []):
@@ -91,7 +92,7 @@ def _closure(
                     DerivedOmission(artifact_path=target, sha256=artifact["sha256"], manifest_sha256=hashes[path])
                 )
             else:
-                issues.append(f"missing upstream artifact: {target}")
+                issues.emit("upstream_artifacts_missing", f"missing upstream artifact: {target}")
         elif hashes[target] != artifact["sha256"]:
             raise InvalidBundle(f"producer artifact hash mismatch: {target}")
     for key, value in document.items():
@@ -104,12 +105,12 @@ def _closure(
             if key == "revision_sha256":
                 target = str(PurePosixPath(path).parent / "revision.json")
                 if target not in hashes:
-                    issues.append(f"missing upstream revision: {target}")
+                    issues.emit("upstream_artifacts_missing", f"missing upstream revision: {target}")
                 elif hashes[target] != value:
                     raise InvalidBundle("revision sidecar hash mismatch")
                 continue
             if value not in by_hash:
-                issues.append(f"missing upstream hash: {path}:{key}")
+                issues.emit("upstream_artifacts_missing", f"missing upstream hash: {path}:{key}")
     if document.get("rule_source") is not None:
         raise InvalidBundle("producer rule_source must remain null")
 
@@ -119,7 +120,7 @@ def _source(
     source: SourceBinding,
     parsed: dict[str, list[dict[str, Any]]],
     hashes: dict[str, str],
-    issues: list[str],
+    issues: Issues,
 ) -> list[NormalizedRecord]:
     records: list[NormalizedRecord] = []
     chain_hashes: list[str] = []
@@ -135,13 +136,13 @@ def _source(
     def load(path: str) -> list[dict[str, Any]]:
         safe_path(path)
         if path not in parsed:
-            issues.append(f"missing upstream JSON: {path}")
+            issues.emit("upstream_artifacts_missing", f"missing upstream JSON: {path}")
         return parsed.get(path, [])
 
     def manifest(path: str, run: str) -> dict[str, Any]:
         documents = load(path)
         if len(documents) != 1:
-            issues.append(f"missing or ambiguous manifest: {path}")
+            issues.emit("upstream_artifacts_missing", f"missing or ambiguous manifest: {path}")
             return {}
         result = documents[0]
         if (
@@ -181,9 +182,15 @@ def _source(
             },
             movement_events,
         )
-        if mapped.kind == "sequence" and (mapped.peak_time is None or any(t is None for t in mapped.time_window)):
+        if mapped.kind == "sequence" and (mapped.peak_time is None or mapped.covering_frames is None):
             values["needs_review"] = True
-            issues.append(f"needs_review: sequence {mapped.event_id} has unresolved source time")
+            if mapped.time_window == (None, None):
+                problem = "invalid source-time interval"
+            elif mapped.covering_frames is None:
+                problem = "window contains no source frame"
+            else:
+                problem = "has unresolved source time"
+            issues.emit("needs_review", f"needs_review: sequence {mapped.event_id} {problem}")
         records.append(
             NormalizedRecord(
                 record_id=identity(*prefix, path, token),
@@ -214,18 +221,18 @@ def _source(
     )
     for document, key, expected in checks:
         if expected is None:
-            issues.append(f"upstream binding unavailable: {key}")
+            issues.emit("upstream_artifacts_missing", f"upstream binding unavailable: {key}")
             continue
         if document and document.get(key) != expected:
             raise InvalidBundle(f"source binding mismatch: {key}")
     calibration_digest = reconstruction.get("source_calibration_sha256")
     calibration_paths = [path for path, digest in hashes.items() if digest == calibration_digest]
     if not calibration_paths:
-        issues.append("missing_input: calibration unavailable")
+        issues.emit("calibration_unavailable", "missing_input: calibration unavailable")
     else:
         calibration_rows = load(calibration_paths[0])
         if len(calibration_rows) != 1:
-            issues.append("missing_input: calibration unavailable")
+            issues.emit("calibration_unavailable", "missing_input: calibration unavailable")
         else:
             calibration = calibration_rows[0]
             if (
@@ -235,7 +242,7 @@ def _source(
             ) != (producer_case_id, source.original_video_sha256, source.calibration_revision):
                 raise InvalidBundle("calibration source binding mismatch")
             if calibration.get("validation_passed") is not True:
-                issues.append("missing_input: failed calibration")
+                issues.emit("calibration_failed", "missing_input: failed calibration")
             if movement and (
                 calibration.get("mode") != movement.get("calibration_mode")
                 or calibration.get("world_unit") != movement.get("unit")
@@ -255,7 +262,7 @@ def _source(
             )
     for scene in load(str(rec_root / "scene.json")):
         if movement and scene["display_unit"] != movement["unit"]:
-            issues.append("scene display unit mismatch")
+            issues.emit("validation_issue", "scene display unit mismatch")
     timestamps = load(str(rec_root / "source_frames.jsonl"))
     time_by_frame: dict[int, dict[str, Any]] = {}
     frame_by_time: dict[float, int] = {}
@@ -274,12 +281,12 @@ def _source(
         time_by_frame[frame] = row
         frame_by_time[time] = frame
     if not timestamps:
-        issues.append("missing_input: no source timestamps")
+        issues.emit("source_timestamps_unavailable", "missing_input: no source timestamps")
     if reconstruction and (
         reconstruction.get("source_frame_count") != len(time_by_frame)
         or any(frame != index for index, frame in enumerate(sorted(time_by_frame)))
     ):
-        issues.append("missing_input: incomplete zero-based source timestamp table")
+        issues.emit("source_timestamps_incomplete", "missing_input: incomplete zero-based source timestamp table")
 
     def citation(frame: Any, time: Any, *, overlay: bool = False) -> dict[str, Any]:
         if frame is not None and (type(frame) is not int or frame < 0):
@@ -289,7 +296,7 @@ def _source(
         row = time_by_frame.get(frame) if frame is not None else None
         if row is None or abs(row["source_time"] - time) > TIMESTAMP_TOLERANCE_SECONDS:
             if not overlay:
-                issues.append("source frame/time unresolved")
+                issues.emit("validation_issue", "source frame/time unresolved")
             return {"needs_review": True}
         return {
             "source_frame": frame,
@@ -365,7 +372,7 @@ def _source(
             raise InvalidBundle("invalid assessment")
         original_assessments[row["assessment_id"]] = row
     if not originals:
-        issues.append("missing_input: no incident candidates")
+        issues.emit("no_incident_candidates", "missing_input: no incident candidates")
 
     decisions: dict[tuple[str, str], dict[str, Any]] = {}
     revision_hash = reviewed.get("review_revision_sha256")
@@ -379,7 +386,7 @@ def _source(
         chain_hashes.append(revision_hash)
         candidates = [p for p, h in hashes.items() if h == revision_hash]
         if not candidates:
-            issues.append("missing upstream review revision")
+            issues.emit("upstream_artifacts_missing", "missing upstream review revision")
             break
         revision_path = candidates[0]
         revision_docs = load(revision_path)
@@ -401,7 +408,7 @@ def _source(
                 raise InvalidBundle("review chain skips preceding revisions")
             break
         if expected_revision == "revision-001" and source.incident_manifest not in hashes:
-            issues.append("review chain root incident manifest unavailable")
+            issues.emit("upstream_artifacts_missing", "review chain root incident manifest unavailable")
             break
         revision_hash = previous
         # IDs are producer revision-NNN; verify backwards order rather than trusting arbitrary linked JSON.
@@ -412,7 +419,7 @@ def _source(
     if source.review_revision == "initial" and revision_hash is not None:
         raise InvalidBundle("initial review cannot name a revision")
     if source.review_revision != "initial" and reviewed and not revision_hash:
-        issues.append("missing upstream review revision")
+        issues.emit("upstream_artifacts_missing", "missing upstream review revision")
     review_available = source.review_revision == "initial" or latest_loaded
 
     def check_frames(proposal: dict[str, Any]) -> None:
@@ -423,7 +430,7 @@ def _source(
             for signal in proposal.get(collection, []):
                 for frame in signal["source_frames"]:
                     if frame not in time_by_frame:
-                        issues.append("supporting evidence frame unresolved")
+                        issues.emit("validation_issue", "supporting evidence frame unresolved")
 
     for proposal in (*originals.values(), *original_assessments.values()):
         check_frames(proposal)
@@ -437,7 +444,7 @@ def _source(
         if event_id in seen_events or (event_id in originals and originals[event_id] != proposal):
             raise InvalidBundle("reviewed event does not preserve original proposal")
         if event_id not in originals:
-            issues.append("missing original event proposal")
+            issues.emit("upstream_artifacts_missing", "missing original event proposal")
         seen_events.add(event_id)
         decision = decisions.get(("event", event_id)) if review_available else row["decision"]
         expected_status = _review_status(decision)
@@ -468,8 +475,9 @@ def _source(
             matches = [f for t, f in frame_by_time.items() if abs(t - effective_time) <= TIMESTAMP_TOLERANCE_SECONDS]
             frame = matches[0] if len(matches) == 1 else None
             if frame is None and decision.get("modified_peak_time") is not None:
-                issues.append(
-                    f"needs_review: event {event_id} corrected time {effective_time!r} unresolved in source timestamp table"
+                issues.emit(
+                    "needs_review",
+                    f"needs_review: event {event_id} corrected time {effective_time!r} unresolved in source timestamp table",
                 )
             add(
                 "review_overlay",
@@ -486,7 +494,7 @@ def _source(
                 **citation(frame, effective_time, overlay=True),
             )
     if seen_events != originals.keys():
-        issues.append("missing reviewed events")
+        issues.emit("upstream_artifacts_missing", "missing reviewed events")
     for event_id in originals.keys() - seen_events:
         proposal = originals[event_id]
         add(
@@ -507,7 +515,7 @@ def _source(
         ):
             raise InvalidBundle("reviewed assessment does not preserve original proposal")
         if assessment_id not in original_assessments:
-            issues.append("missing original assessment proposal")
+            issues.emit("upstream_artifacts_missing", "missing original assessment proposal")
         seen_assessments.add(assessment_id)
         decision = decisions.get(("assessment", assessment_id)) if review_available else row["decision"]
         parent = statuses.get(proposal["event_id"])
@@ -521,7 +529,7 @@ def _source(
         ):
             raise InvalidBundle("assessment or parent status mismatch")
         if parent is None:
-            issues.append("assessment parent event missing")
+            issues.emit("upstream_artifacts_missing", "assessment parent event missing")
         effective = {"outcome": row["outcome"], "contributing_track_ids": row["contributing_track_ids"]}
         for key, modification in (
             ("outcome", "modified_outcome"),
@@ -553,7 +561,7 @@ def _source(
                 needs_review=True,
             )
     if seen_assessments != original_assessments.keys():
-        issues.append("missing reviewed assessments")
+        issues.emit("upstream_artifacts_missing", "missing reviewed assessments")
     for assessment_id in original_assessments.keys() - seen_assessments:
         proposal = original_assessments[assessment_id]
         add(

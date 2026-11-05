@@ -66,6 +66,7 @@ class GeometryFields(FrozenRecord):
 
 
 class TrackFields(FrozenRecord):
+    class_name: str | None = None
     kind: Literal["track_reference"] = "track_reference"
     producer: str
     case_id: str
@@ -129,6 +130,7 @@ class UnresolvedFact(FrozenRecord):
 
 
 class SequenceFields(FrozenRecord):
+    covering_frames: tuple[int, int] | None = None
     kind: Literal["sequence"] = "sequence"
     event_id: str
     event_type: str

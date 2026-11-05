@@ -40,7 +40,7 @@ def test_unresolvable_sequence_times_stay_unknown(tmp_path: Path) -> None:
     record = next(r for r in result.records if isinstance(r.data, SequenceFields) and r.data.rank == 1)
     assert isinstance(record.data, SequenceFields)
     assert record.data.peak_time is None and record.data.peak_frame is None
-    assert record.data.time_window == (None, 0.04)
+    assert record.data.time_window == (0.001, 0.04)
     assert record.original["peak_time"] == 0.001
     assert record.needs_review and record.record_id in result.quarantined_records
 

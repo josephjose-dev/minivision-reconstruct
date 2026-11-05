@@ -57,7 +57,7 @@ on Windows; UNC/device paths, symlinks, junctions, linked ancestors and special 
 are refused. Supply a stable directory; this is not an OS sandbox against another
 process concurrently replacing filesystem ancestors.
 
-Versioning: contract `1.0`, importer `1.2.0`. Unknown contract or producer schema
+Versioning: contract `1.0`, importer `1.4.0`. Unknown contract or producer schema
 versions reject rather than guessing compatibility. Regenerate schemas from the
 Pydantic models when the reviewed contract changes. No existing app behavior or
 fault engine is connected to this module.
@@ -139,3 +139,26 @@ An off-table producer review correction also emits a needs_review issue naming t
 producer target event and requested time. This is a review diagnostic, not missing
 upstream evidence: provenance may remain verified, but the overlay stays quarantined
 with null citation fields. All fault/approval flags remain false.
+
+MIG-03 L1 supersedes Round 3's frame-only window endpoints: sequence time_window is
+a source-time interval. Matching bounds use canonical table times; other bounds stay
+unchanged. covering_frames records the first/last source frames inside the closed
+interval. A window quarantines only if no frame lies inside; a separately unresolved
+peak still needs review. Raw windows remain untouched. No interpolation is invented.
+
+MIG-03 L3: each raised importer diagnostic now carries a structured code. Message
+text is retained in issues for old consumers; issue_codes is parallel to it and
+missing_inputs is a tuple derived from codes only. Previously stored missing_inputs
+lists remain readable as tuples; older records lacking codes remain readable without
+inventing codes from their historical text. Rewording messages leaves missing_inputs
+unchanged. Importer version 1.3.0 identifies these revised decisions.
+
+Importer 1.4.0 adds optional `class_name` to the typed track reference, copied from
+the producer observation, for the unmapped-track display. Historical records without
+this field remain readable as unknown class; they must be re-imported to gain it.
+Track associations remain reviewer-set display data, separate from fault and AI.
+
+Diagnostic mapping: both "missing source bindings" and "assessment parent event
+missing" emit `upstream_artifacts_missing`. These are missing-input states, never
+evidence of no incident. Reversed or wrong-length sequence windows quarantine only
+that row, retain its raw window in `original`, and expose unknown normalized bounds.
