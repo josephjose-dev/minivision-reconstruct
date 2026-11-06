@@ -2,6 +2,7 @@
 
 import io
 import zipfile
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,6 +11,7 @@ from incident_report.audit import canonical_json
 from incident_report.domain import Report
 from incident_report.runlog import RunLog
 from test_package_parity import approve, csrf_token
+from test_package_verify import built as built
 from test_report_print import workspace as workspace
 
 ALLOWED_TEXT = [
@@ -224,3 +226,82 @@ def test_html_keeps_inert_styles_and_metadata(head: str) -> None:
     from incident_report.web.package_safety import validate_payload
 
     validate_payload("report.html", _page(head, '<a href="https://example.org/law">source</a>'))
+
+
+def _files(content: bytes) -> dict[str, bytes]:
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        return {name: archive.read(name) for name in archive.namelist()}
+
+
+def _zip(files: dict[str, bytes], *, compression: int = zipfile.ZIP_STORED, comment: bytes = b"") -> bytes:
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", compression=compression) as archive:
+        archive.comment = comment
+        for name, data in files.items():
+            archive.writestr(name, data)
+    return output.getvalue()
+
+
+def test_verifier_limits_baseline_accepts_a_plain_rewrite(built: bytes) -> None:
+    from incident_report.package import verify
+
+    assert verify(_zip(_files(built)))["version_number"] == 1
+
+
+def test_verifier_refuses_too_many_members(built: bytes) -> None:
+    from incident_report.package import verify
+    from incident_report.package_format import MAX_PACKAGE_MEMBERS, VerificationRefused
+
+    files = _files(built)
+    files.update({f"extra/{n}.txt": b"x" for n in range(MAX_PACKAGE_MEMBERS + 1)})
+    with pytest.raises(VerificationRefused, match="members"):
+        verify(_zip(files))
+
+
+def test_verifier_refuses_oversized_declared_total(built: bytes, monkeypatch: pytest.MonkeyPatch) -> None:
+    from incident_report.package import verify
+    from incident_report.package_format import VerificationRefused
+    from incident_report.web import package_verification
+
+    monkeypatch.setattr(package_verification, "MAX_PACKAGE_BYTES", sum(map(len, _files(built).values())) - 1)
+    with pytest.raises(VerificationRefused, match="total size"):
+        verify(built)
+    monkeypatch.setattr(package_verification, "MAX_PACKAGE_BYTES", sum(map(len, _files(built).values())))
+    verify(built)  # exactly at the bound is accepted
+
+
+def test_verifier_refuses_compressed_members(built: bytes) -> None:
+    from incident_report.package import verify
+    from incident_report.package_format import VerificationRefused
+
+    with pytest.raises(VerificationRefused, match="stored|compress"):
+        verify(_zip(_files(built), compression=zipfile.ZIP_DEFLATED))
+
+
+def test_verifier_refuses_an_archive_comment(built: bytes) -> None:
+    from incident_report.package import verify
+    from incident_report.package_format import VerificationRefused
+
+    with pytest.raises(VerificationRefused, match="comment|outside"):
+        verify(_zip(_files(built), comment=b"hidden note"))
+
+
+@pytest.mark.parametrize("where", ["before", "after"])
+def test_verifier_refuses_bytes_outside_the_archive(built: bytes, where: str) -> None:
+    from incident_report.package import verify
+    from incident_report.package_format import VerificationRefused
+
+    padded = b"JUNK" + built if where == "before" else built + b"JUNK"
+    with pytest.raises(VerificationRefused, match="outside|before|after|comment"):
+        verify(padded)
+
+
+def test_verifier_cli_reports_the_new_refusals(
+    built: bytes, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from incident_report.package import main
+
+    path = tmp_path / "padded.zip"
+    path.write_bytes(built + b"JUNK")
+    assert main(["verify", str(path)]) == 1
+    assert "refused" in capsys.readouterr().err.lower()

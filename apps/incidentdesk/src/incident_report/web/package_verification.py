@@ -11,7 +11,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from incident_report.package_format import MAX_MANIFEST_BYTES, VerificationRefused
+from incident_report.package_format import (
+    MAX_MANIFEST_BYTES,
+    MAX_PACKAGE_BYTES,
+    MAX_PACKAGE_MEMBERS,
+    VerificationRefused,
+)
 from incident_report.web.package_safety import member_path
 
 
@@ -94,15 +99,42 @@ def verify(source: Path | bytes) -> dict[str, Any]:
         raise VerificationRefused("Package is unreadable, corrupt or has an unsafe path.") from None
 
 
+_END_RECORD_BYTES = 22  # An end-of-central-directory record with an empty comment.
+
+
+def _tail(source: Path | bytes) -> bytes:
+    if isinstance(source, bytes):
+        return source[-_END_RECORD_BYTES:]
+    with source.open("rb") as handle:
+        handle.seek(0, 2)
+        handle.seek(max(handle.tell() - _END_RECORD_BYTES, 0))
+        return handle.read(_END_RECORD_BYTES)
+
+
 def _verify(source: Path | bytes) -> dict[str, Any]:
     with zipfile.ZipFile(io.BytesIO(source) if isinstance(source, bytes) else source) as archive:
         infos = archive.infolist()
+        if len(infos) > MAX_PACKAGE_MEMBERS:
+            raise VerificationRefused("Package has too many members.")
+        if sum(info.file_size for info in infos) > MAX_PACKAGE_BYTES:
+            raise VerificationRefused("Package total size exceeds the verifier limit.")
+        # Our builder writes one plain archive: no comment, nothing before the first member or after the end.
+        tail = _tail(source)
+        if (
+            archive.comment
+            or tail[:4] != b"PK\x05\x06"
+            or tail[-2:] != b"\x00\x00"
+            or min((info.header_offset for info in infos), default=0) != 0
+        ):
+            raise VerificationRefused("Package has a comment or bytes outside the archive.")
         names = [info.filename for info in infos]
         if len(names) != len(set(name.casefold() for name in names)):
             raise VerificationRefused("Package contains duplicate or colliding members.")
         for info in infos:
             member_path(info.filename)
             mode = stat.S_IFMT(info.external_attr >> 16)
+            if info.compress_type != zipfile.ZIP_STORED:
+                raise VerificationRefused("Only stored (uncompressed) members are accepted.")
             if mode not in {0, stat.S_IFREG} or info.is_dir() or info.flag_bits & 1:
                 raise VerificationRefused("Links, directories, special or encrypted members are refused.")
         if "manifest.json" not in names:
