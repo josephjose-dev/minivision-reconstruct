@@ -19,6 +19,9 @@ def _text(text: str) -> None:
     for url in re.findall(r'https?://[^\s"<>]+', text):
         try:
             parts = urlsplit(url)
+            uri_text = unquote(parts.path + "?" + parts.query + "#" + parts.fragment)
+            if re.search(r"[A-Za-z]:[\\/]|\\\\|(?:^|[?&#=])/(?:Users|home|tmp|mnt|var|etc|opt)(?:/|$)", uri_text):
+                raise UnsafePayload("A payload URL contains a machine-local path.")
             host = (parts.hostname or "").lower().rstrip(".")
             if not host or parts.username or parts.password or host == "localhost" or host.endswith(".localhost"):
                 raise UnsafePayload("A payload contains a machine-local host or credential URL.")

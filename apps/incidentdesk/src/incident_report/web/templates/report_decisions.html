@@ -71,6 +71,9 @@
 <p>This report has no party or violation findings to override.</p>
 {% endif %}
 {% if review_workspace and not print_view %}
+  {% if decision.is_approved %}
+  <p><a class="button button--secondary" href="/reports/{{ report.run_id }}/versions/{{ decision.version_number }}/package">Download approved version {{ decision.version_number }} package</a> · <a href="/reports/{{ report.run_id }}/print?version={{ decision.version_number }}" target="_blank" rel="noopener noreferrer">Print approved version {{ decision.version_number }} (A4 / PDF)</a></p>
+  {% endif %}
   {% if decision.can_edit and report.is_valid %}
   <form method="post" action="/reports/{{ report.run_id }}/approve" class="approve-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

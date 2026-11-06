@@ -187,6 +187,8 @@ def test_package_appendix_uses_only_imports_attached_at_approval(
         "http://127.0.0.1/private",
         "http://127.1/private",
         "http://2130706433/private",
+        "https://example.com/C:/Users/private",
+        "https://example.com/source?file=/home/alice/private",
         "file:///tmp/private",
         r"\\server\share\private",
     ],
