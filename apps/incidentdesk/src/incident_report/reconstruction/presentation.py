@@ -7,14 +7,20 @@ from incident_report.domain import Report, Role
 
 from .alignment import RELIABILITIES, combined_groups
 from .alignment import history as alignment_history
-from .config import ReconstructionSettings
+from .config import ReconstructionSettings, native_tools_enabled
 from .cross_check import Comparison, compare_view
 from .driver_context import driver_panels
 from .mapping import Mapping, TrackOption, mapping_history, track_options
 from .paths import list_bundles
 from .store import Attachment, Workspace
 from .timeline import MISSING_LABELS, TimelineGroup, timeline_groups
-from .tools import tool_links
+from .tools import native_links, tool_links
+
+
+@dataclass(frozen=True)
+class NativeSelection:
+    description: str
+    tools: tuple[tuple[str, str], ...]
 
 
 @dataclass(frozen=True)
@@ -26,12 +32,14 @@ class ViewPanel:
     tracks: tuple[TrackOption, ...] = ()
     stale_mappings: tuple[Mapping, ...] = ()
     comparisons: tuple[Comparison, ...] = ()
+    native_selections: tuple[NativeSelection, ...] = ()
 
 
 def context(workspace: Workspace, report: Report, settings: ReconstructionSettings) -> dict[str, Any]:
     if not settings.enabled:
         return {}
     current = workspace.current(report.run_id)
+    native = native_tools_enabled()
     panels = {}
     for view in report.views:
         links = tuple(link for link in current if link.view_sha256 == view.sha256)
@@ -49,6 +57,7 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
             ):
                 notices.append(f"Imported revision {previous.import_id}: {workspace.attachment_note(previous)}")
         selections = []
+        native_selections = []
         tracks: list[TrackOption] = []
         comparisons: list[Comparison] = []
         history = mapping_history(workspace, report.run_id)
@@ -59,6 +68,8 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
                 selections.append(
                     f"Case: {link.producer_case_id}; tracking run: {source.tracking_run}; tracks revision: {source.track_revision}; calibration: {source.calibration_revision}; reconstruction run: {source.reconstruction_run}; incident run: {source.incident_run}; review revision: {source.review_revision}"
                 )
+                if native:
+                    native_selections.append(NativeSelection(selections[-1], native_links(report.run_id, link.link_id)))
             options = track_options(workspace, report.run_id, link)
             tracks.extend(options)
             latest = {
@@ -119,6 +130,7 @@ def context(workspace: Workspace, report: Report, settings: ReconstructionSettin
             tuple(tracks),
             stale,
             tuple(comparisons),
+            tuple(native_selections),
         )
     alignments = alignment_history(workspace, report.run_id)
     return {

@@ -2,10 +2,17 @@
 <div class="reconstruction-only">
 {% if view is defined and view.role is defined and view.role.value != 'interior' %}{% include "reconstruction_cross_check.html" %}{% endif %}
 {% for notice in panel.notices %}<p role="note" class="alert">{{ notice }}</p>{% endfor %}
+{% if panel.native_selections %}
+{% for selection in panel.native_selections %}
+<p><strong>Attached selection:</strong> <span>{{ selection.description }}</span></p>
+<p>Open in reconstruction tools: {% for label, url in selection.tools %}<a href="{{ url }}">{{ label }}</a> {% endfor %}</p>
+{% endfor %}
+{% else %}
 {% for selection in panel.tool_selections %}
 <p><strong>Choose in the tool dropdown:</strong> <span>{{ selection }}</span> <button type="button" data-copy-reconstruction="{{ selection }}">Copy selection details</button></p>
 <p>Open in reconstruction tools: {% for label, url in reconstruction_tools %}<a href="{{ url }}" target="_blank" rel="noopener">{{ label }}</a> {% endfor %}</p>
 {% endfor %}
+{% endif %}
 <ul class="review-moments">
 {% for group in panel.groups %}
 <li>{% if group.order_unresolved %}<strong>Order not determined</strong>{% endif %}

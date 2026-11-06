@@ -296,6 +296,15 @@ def test_track_page_uses_attached_selection_and_protects_write(
         assert mapping_history(workspace, report.run_id)[0].stale
     new_url = url.replace(str(link.link_id), attached.json()["new_link_id"])
     assert client.get(new_url).status_code == 200
+    incident_url = f"/reports/{report.run_id}"
+    review_native = client.get(incident_url + "/review")
+    assert new_url in review_native.text
+    assert "/reconstruct/tracks/" not in review_native.text
+    native_print = client.get(incident_url + "/print").content
     monkeypatch.setenv("INCIDENTDESK_NATIVE_TOOLS", "false")
     assert client.get(url).status_code == 404
     assert client.get(new_url).status_code == 404
+    legacy_page = client.get(incident_url + "/review")
+    assert "/reconstruct/tracks/" in legacy_page.text
+    assert new_url not in legacy_page.text
+    assert client.get(incident_url + "/print").content == native_print

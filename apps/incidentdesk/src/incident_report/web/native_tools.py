@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import os
 import re
 import secrets
 import uuid
@@ -18,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 
 from incident_report.domain import Role
 from incident_report.reconstruction.config import ReconstructionSettings
+from incident_report.reconstruction.config import native_tools_enabled as native_enabled
 from incident_report.reconstruction.database import local_database
 from incident_report.reconstruction.native_client import ToolsUnavailable, ToolsWorker
 from incident_report.reconstruction.store import Workspace
@@ -26,13 +26,6 @@ from incident_report.web.access import _check_origin, _csrf_token
 from incident_report.web.body_limit import BodyTooLargeError, read_limited_body
 from incident_report.web.review import accessible_report
 from incident_report.web.templating import build_environment
-
-
-def native_enabled() -> bool:
-    value = os.environ.get("INCIDENTDESK_NATIVE_TOOLS", "false").strip().lower()
-    if value not in {"false", "0", "true", "1", ""}:
-        raise ValueError("INCIDENTDESK_NATIVE_TOOLS must be true or false")
-    return value in {"true", "1"}
 
 
 def track_action(fields: dict[str, str]) -> dict[str, Any]:
