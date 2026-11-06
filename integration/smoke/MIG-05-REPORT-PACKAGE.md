@@ -38,3 +38,12 @@ resources and machine-local paths/hosts are refused. CSS/fonts are embedded. Cur
 reconstruction/driver export selections are explicit in export_options; source review
 records are anchored to the approval snapshot (legacy approvals use a timestamp cutoff).
 App commit is unknown when the original report did not capture that provenance.
+
+## Round 2 note (mig-05-r2)
+Extra manual checks after the R2 fixes:
+8. Add an override reason with Arabic text after a colon, a bare slash word ("checked /ref", "lane (/left)")
+   and "60 km/h"; approve and download the package. It must download; a reason containing a real machine
+   path (`C:\Users\x`, `/home/x`, `\server\share`) must be refused with a message naming the payload file.
+9. Timestamps in `manifest.json`, `decisions.json` and the printed approval line end in `+00:00` (UTC).
+10. `python -m incident_report.package verify` refuses a copy with a ZIP comment, extra bytes before or
+    after the archive, a compressed member, or more than the member/size bounds (engineering bounds, not standards).
