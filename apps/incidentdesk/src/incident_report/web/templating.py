@@ -6,6 +6,7 @@ escaped when rendered). The `label(key)` global feeds the `bilingual` macro in `
 
 from __future__ import annotations
 
+from datetime import UTC
 from pathlib import Path
 
 import jinja2
@@ -21,6 +22,7 @@ def build_environment(catalog: LabelCatalog | None = None) -> jinja2.Environment
         loader=jinja2.FileSystemLoader(TEMPLATES_DIR),
         autoescape=True,
     )
+    env.filters["utc"] = lambda value: value.astimezone(UTC)
     env.filters["fault_status_label"] = lambda value: FaultStatus(value).display_label
     env.globals["label"] = (catalog or LabelCatalog.default()).get
     return env

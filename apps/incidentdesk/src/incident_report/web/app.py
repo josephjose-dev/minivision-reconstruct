@@ -61,6 +61,8 @@ from incident_report.feedback import (
 from incident_report.hashing import incident_input_hash, sha256_hex
 from incident_report.intake import configured_store, receive_view
 from incident_report.intake_limits import IntakeLimits
+from incident_report.package import PackageRefused
+from incident_report.package import build as build_report_package
 from incident_report.questions import QAConnection, QuestionStore, ReplayQAConnection
 from incident_report.reconstruction.config import ReconstructionSettings
 from incident_report.runlog import RunLog
@@ -76,6 +78,7 @@ from incident_report.web.access import (
 )
 from incident_report.web.body_limit import BodyTooLargeError, read_limited_body
 from incident_report.web.decisions import decision_context, install_decisions
+from incident_report.web.printing import render_print
 from incident_report.web.questions import install_questions
 from incident_report.web.reconstruction import install_reconstruction, reconstruction_context
 from incident_report.web.review import accessible_report, install_review
@@ -682,8 +685,36 @@ def create_app(
             return error_page(request, exc.status_code, str(exc.detail))
         except DecisionRefused as exc:
             return error_page(request, exc.status_code, exc.message)
-        return templates.TemplateResponse(
-            request, "report_print.html", {"report": run.report, "print_view": True, **context}
+        if run.report is None:
+            return error_page(request, 404, "No report with that id.")
+        request.state.embedded_print = True
+        return HTMLResponse(render_print(run.report, context["decision"]))
+
+    @app.get("/reports/{run_id}/versions/{n}/package")
+    def download_package(request: Request, run_id: uuid.UUID, n: int) -> Response:
+        try:
+            accessible_report(log, request, run_id)
+            content = build_report_package(
+                run_id,
+                n,
+                log=log,
+                evidence=evidence,
+                attribution=request.state.attribution,
+                request_id=request.state.request_id,
+            )
+        except HTTPException as exc:
+            return error_page(request, exc.status_code, str(exc.detail))
+        except DecisionRefused as exc:
+            return error_page(request, exc.status_code, exc.message)
+        except PackageRefused as exc:
+            return error_page(request, 409, str(exc))
+        return Response(
+            content,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="incident-report-{run_id}-v{n}.zip"',
+                "Cache-Control": "no-store",
+            },
         )
 
     install_questions(app, log, question_store, qa_connection, evidence, error_page)

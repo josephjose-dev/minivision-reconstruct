@@ -58,10 +58,16 @@ class LocalEvidenceStore:
                 "The evidence directory must not be inside the app's package directory; "
                 "choose a folder outside the source tree."
             )
+        self._root = resolved
         self._objects = resolved / "objects"
         self._staging = resolved / "staging"
         self._objects.mkdir(parents=True, exist_ok=True)
         self._staging.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def root(self) -> Path:
+        """The configured evidence directory; exports use it only to refuse leaking it."""
+        return self._root
 
     @contextlib.contextmanager
     def stage(self) -> Iterator[BinaryIO]:

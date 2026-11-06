@@ -355,6 +355,32 @@ class DecisionStore:
                 state = self._state(conn, run.run_id, None)
                 if state.is_approved:
                     raise DecisionRefused(409, "This version is already approved.")
+                # Workspace writers lock this same row. Capture immutable record IDs,
+                # rather than relying on transaction-start timestamps for later exports.
+                conn.execute("SELECT run_id FROM runs WHERE run_id=%s FOR UPDATE", (run.run_id,))
+                reconstruction_snapshot = {
+                    "link_ids": [
+                        str(row[0])
+                        for row in conn.execute(
+                            "SELECT l.link_id FROM incident_evidence_imports l WHERE l.incident_id=%s AND NOT EXISTS (SELECT 1 FROM incident_evidence_supersessions s WHERE s.old_link_id=l.link_id) ORDER BY l.sequence_number",
+                            (run.run_id,),
+                        )
+                    ],
+                    "mapping_ids": [
+                        row[0]
+                        for row in conn.execute(
+                            "SELECT mapping_id FROM track_party_mappings WHERE incident_id=%s ORDER BY mapping_id",
+                            (run.run_id,),
+                        )
+                    ],
+                    "alignment_ids": [
+                        row[0]
+                        for row in conn.execute(
+                            "SELECT alignment_id FROM view_time_alignments WHERE incident_id=%s ORDER BY alignment_id",
+                            (run.run_id,),
+                        )
+                    ],
+                }
                 digest = _fingerprint(
                     run.input_hash,
                     str(state.version_number),
@@ -393,6 +419,7 @@ class DecisionStore:
                         "override_count": len(state.overrides),
                         "overrides_digest": digest,
                         "input_hash": run.input_hash,
+                        "reconstruction_snapshot": reconstruction_snapshot,
                     },
                 )
                 return self._state(conn, run.run_id, None)
