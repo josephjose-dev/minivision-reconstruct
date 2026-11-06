@@ -118,6 +118,7 @@ def member_path(name: str) -> None:
     for part in name.split("/"):
         if (
             part.endswith((" ", "."))
+            or any(char in '<>"|?*' for char in part)
             or part.split(".")[0].lower() in reserved
             or any(ord(c) < 32 or ord(c) == 127 for c in part)
         ):

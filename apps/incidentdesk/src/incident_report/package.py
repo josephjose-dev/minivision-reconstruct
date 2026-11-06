@@ -18,11 +18,12 @@ from incident_report.audit import canonical_json
 from incident_report.decisions import ReportState
 from incident_report.domain import Attribution, Report, RunStatus
 from incident_report.package_safety import UnsafePayload, member_path, validate_payload
+from incident_report.package_verification import MAX_MANIFEST_BYTES, VerificationRefused
+from incident_report.package_verification import verify as verify
 from incident_report.reconstruction.config import ReconstructionSettings
 from incident_report.runlog import RunLog
 from incident_report.storage import EvidenceStore, StorageError
 from incident_report.storage.interface import validate_sha256_key
-from incident_report.web.printing import render_print
 
 
 class PackageRefused(ValueError):
@@ -113,6 +114,8 @@ def build(
     state = log.decisions.state(run_id, version)
     if not state.is_approved:
         raise PackageRefused("Only approved versions can be packaged; this version is a draft.")
+    from incident_report.web.printing import render_print
+
     files = _original_views(run.report, evidence)
     decisions, anchor, snapshot = _decision_data(log, state)
     files["report.html"] = render_print(run.report, state)
@@ -146,8 +149,14 @@ def build(
         ],
     }
     manifest_bytes = canonical_json(manifest).encode()
+    if len(manifest_bytes) > MAX_MANIFEST_BYTES:
+        raise PackageRefused("Package manifest is too large to verify portably.")
     files["manifest.json"] = manifest_bytes
     result = assemble(files)
+    try:
+        verify(result)
+    except VerificationRefused:
+        raise PackageRefused("Package inventory exceeds verifier limits or is not portable.") from None
     log.audit.append(
         event_type="export",
         action="package.built",
@@ -210,15 +219,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     command.add_argument("run_id", type=uuid.UUID)
     command.add_argument("version", type=int)
     command.add_argument("output", type=Path)
+    verification = commands.add_parser("verify", help="verify package paths, inventory, SHA-256 and sizes")
+    verification.add_argument("zip", type=Path)
     args = parser.parse_args(argv)
     try:
+        if args.command == "verify":
+            verify(args.zip)
+            print("Package verified: every payload hash and byte size matches the manifest.")
+            return 0
         content = build(args.run_id, args.version)
         args.output.write_bytes(content)
         print("Approved report package built.")
         return 0
-    except (PackageRefused, OSError) as exc:
+    except (PackageRefused, VerificationRefused, OSError) as exc:
         print(
-            f"Package refused: {exc}" if isinstance(exc, PackageRefused) else "Package output is unavailable.",
+            f"Package refused: {exc}"
+            if isinstance(exc, (PackageRefused, VerificationRefused))
+            else "Package file is unavailable.",
             file=sys.stderr,
         )
         return 1
