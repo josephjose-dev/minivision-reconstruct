@@ -3,15 +3,16 @@
 import hashlib
 import json
 import os
+import re
 import secrets
 import uuid
 from collections.abc import Callable
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import psycopg
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
@@ -144,6 +145,108 @@ def install_native_tools(
                 "The action completed, but audit confirmation failed. Reload saved revisions; do not repeat the action.",
             ) from None
         return result
+
+    def replay_values(source: Any, values: Any) -> dict[str, str]:
+        return {
+            "scene_revision": values.get("scene_revision", "initial"),
+            "marker_revision": values.get("marker_revision", "initial"),
+            "review_revision": values.get("review_revision") or source.review_revision,
+            "incident_run": source.incident_run,
+            "frame": values.get("frame", "0"),
+        }
+
+    @app.get("/reports/{run_id}/tools/{link_id}/replay")
+    @app.get("/reports/{run_id}/tools/{link_id}/replay/{resource:path}")
+    def replay(request: Request, run_id: uuid.UUID, link_id: uuid.UUID, resource: str = "") -> Response:
+        link, source = selection(request, run_id, link_id)
+        values = replay_values(source, request.query_params)
+        path = f"/cases/{quote(link.producer_case_id, safe='')}/replay/{quote(source.reconstruction_run, safe='')}"
+        query = "?" + urlencode(values)
+        try:
+            if resource:
+                if not (
+                    resource in {"bundle", "video", "assets/workspace.js", "assets/workspace.css", "assets/renderer.js"}
+                    or re.fullmatch(r"frame/[0-9]+", resource)
+                    or re.fullmatch(r"snapshot/frame-[0-9]+-[a-f0-9]+\.png", resource)
+                ):
+                    raise HTTPException(404, "Unknown replay resource.")
+                if resource == "video":
+                    blocks, content_type, status, headers = ToolsWorker().stream(
+                        path + "/video" + query, request.headers.get("range")
+                    )
+                    return StreamingResponse(blocks, status_code=status, media_type=content_type, headers=headers)
+                resource_bytes, content_type, status, headers = ToolsWorker().exchange(path + "/" + resource + query)
+                return Response(resource_bytes, status_code=status, media_type=content_type, headers=headers)
+            data = ToolsWorker().json(path + query)
+            return templates.TemplateResponse(
+                request,
+                "native_replay.html",
+                {
+                    "data": data,
+                    "values": values,
+                    "base": request.url.path,
+                    "run_id": run_id,
+                    "csrf_token": _csrf_token(request),
+                },
+            )
+        except (ToolsUnavailable, OSError, psycopg.Error):
+            return error_page(request, 503, "Local replay tools are unavailable.")
+
+    @app.post("/reports/{run_id}/tools/{link_id}/replay")
+    async def save_replay(request: Request, run_id: uuid.UUID, link_id: uuid.UUID) -> Response:
+        link, source, fields = await submitted(request, run_id, link_id)
+        try:
+            action = fields.get("action", "")
+            if action not in {
+                "scene_save",
+                "marker_save",
+                "snapshot_request",
+                "incident_review",
+                "incident_export",
+                "reconstruction_export",
+            }:
+                raise ValueError("Unknown action")
+            body: dict[str, Any] = {
+                **replay_values(source, fields),
+                "action": action,
+                "reviewer": fields["reviewer"].strip(),
+                "reason": fields["reason"].strip(),
+                "action_id": fields.get("action_id") or str(uuid.uuid4()),
+            }
+            if action in {"scene_save", "marker_save"}:
+                body["document"] = json.loads(fields["document"])
+            elif action in {"snapshot_request", "reconstruction_export"}:
+                body["source_frame"] = int(fields.get("source_frame", "0"))
+            elif action == "incident_review":
+                body["decision"] = {
+                    "target_kind": fields["target_kind"],
+                    "target_id": fields["target_id"],
+                    "action": fields["decision_action"],
+                    "note": fields.get("note", ""),
+                    "modified_peak_time": float(fields["modified_peak_time"])
+                    if fields.get("modified_peak_time")
+                    else None,
+                    "modified_location": [float(value) for value in fields["modified_location"].split(",")]
+                    if fields.get("modified_location")
+                    else None,
+                    "modified_outcome": fields.get("modified_outcome") or None,
+                    "modified_contributing_track_ids": [
+                        int(value) for value in fields["modified_contributing_track_ids"].split(",")
+                    ]
+                    if fields.get("modified_contributing_track_ids")
+                    else ([] if fields.get("change_contributors") == "yes" else None),
+                }
+            path = f"/cases/{quote(link.producer_case_id, safe='')}/replay/{quote(source.reconstruction_run, safe='')}"
+            result = await audited_write(request, run_id, link_id, body, path, "replay")
+            return JSONResponse(result)
+        except ToolsUnavailable:
+            return error_page(
+                request, 503, "The worker did not confirm completion. Inspect saved revisions before submitting again."
+            )
+        except (ValueError, KeyError, TypeError):
+            return error_page(request, 422, "Check replay fields, attribution and selected revisions.")
+        except (OSError, psycopg.Error):
+            return error_page(request, 503, "Local audit or tools are unavailable.")
 
     @app.get("/reports/{run_id}/tools/{link_id}/calibration")
     @app.get("/reports/{run_id}/tools/{link_id}/calibration/frame")

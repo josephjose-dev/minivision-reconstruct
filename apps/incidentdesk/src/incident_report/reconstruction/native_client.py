@@ -2,6 +2,8 @@
 
 import json
 import os
+import re
+from collections.abc import Iterator
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
@@ -32,7 +34,8 @@ class ToolsWorker:
         # Fixed loopback URL, no redirects and no environment proxy (token stays local).
         request = Request("http://127.0.0.1:8520" + path, data=data, headers=headers)
         try:
-            with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=60) as response:
+            timeout = 600 if isinstance(body, dict) and body.get("action") == "reconstruction_export" else 60
+            with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=timeout) as response:
                 # Project assumption, to be validated: a JSON/PNG response fits 32 MiB.
                 payload = response.read(32 * 1024 * 1024 + 1)
                 if len(payload) > 32 * 1024 * 1024:
@@ -52,3 +55,33 @@ class ToolsWorker:
             return value
         except (ValueError, TypeError) as error:
             raise ToolsUnavailable("Local tools returned an invalid response.") from error
+
+    def stream(self, path: str, byte_range: str | None) -> tuple[Iterator[bytes], str, int, dict[str, str]]:
+        token = os.environ.get("INCIDENTDESK_TOOLS_TOKEN", "")
+        if not token or not path.startswith("/cases/") or "\r" in path or "\n" in path:
+            raise ToolsUnavailable("Local tools are not configured.")
+        headers = {"Authorization": f"Bearer {token}"}
+        if byte_range:
+            if not re.fullmatch(r"bytes=(?:[0-9]+-[0-9]*|-[0-9]+)", byte_range):
+                raise ToolsUnavailable("Use a single valid byte range.")
+            headers["Range"] = byte_range
+        try:
+            response = build_opener(ProxyHandler({}), NoRedirect()).open(
+                Request("http://127.0.0.1:8520" + path, headers=headers), timeout=60
+            )
+        except (HTTPError, URLError, OSError, ValueError) as error:
+            raise ToolsUnavailable("Local replay video is unavailable.") from error
+
+        def chunks() -> Iterator[bytes]:
+            try:
+                while block := response.read(64 * 1024):
+                    yield block
+            finally:
+                response.close()
+
+        forwarded = {
+            key: response.headers[key]
+            for key in ("Content-Range", "Accept-Ranges", "Content-Length")
+            if key in response.headers
+        }
+        return chunks(), response.headers.get_content_type(), response.status, forwarded

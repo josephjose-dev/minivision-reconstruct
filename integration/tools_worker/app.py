@@ -120,6 +120,7 @@ def create_app(cases_root: Path, token: str) -> Starlette:
 
     from integration.tools_worker.tracks import routes as track_routes
     from integration.tools_worker.calibration import routes as calibration_routes
+    from integration.tools_worker.replay import routes as replay_routes
 
     return Starlette(
         routes=[
@@ -127,6 +128,7 @@ def create_app(cases_root: Path, token: str) -> Starlette:
             Route("/cases/{case_id}/runs/{run_id}", selected_run),
             *track_routes(root, select_case),
             *calibration_routes(root, select_case),
+            *replay_routes(root, select_case),
         ],
         middleware=[Middleware(LocalAccess, token=token)],
     )

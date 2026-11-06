@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -65,6 +66,15 @@ def test_track_page_uses_attached_selection_and_protects_write(
         self: object, path: str, body: object = None, byte_range: str | None = None
     ) -> tuple[bytes, str, int, dict[str, str]]:
         calls.append((path, body))
+        if "/replay/" in path:
+            if isinstance(body, dict):
+                return b'{"revision":"revision-001","category":"scene"}', "application/json", 200, {}
+            return (
+                (Path(__file__).parent / "fixtures/native_tracks/replay-response.json").read_bytes(),
+                "application/json",
+                200,
+                {},
+            )
         if "/calibration/" in path:
             if isinstance(body, dict) and body.get("action") == "save":
                 return b'{"revision":"revision-003"}', "application/json", 200, {}
@@ -89,6 +99,12 @@ def test_track_page_uses_attached_selection_and_protects_write(
         )
 
     monkeypatch.setattr(ToolsWorker, "exchange", exchange)
+
+    def stream(self: object, path: str, byte_range: str | None) -> tuple[Iterator[bytes], str, int, dict[str, str]]:
+        calls.append((path, byte_range))
+        return iter([b"01234567", b"89abcdef"]), "video/mp4", 206, {"Content-Range": "bytes 0-15/100"}
+
+    monkeypatch.setattr(ToolsWorker, "stream", stream)
     app = create_app(ai=ReplayAIConnection(), run_log=run_log)
     client = authorized_client(app, run_log.database_url)
     url = f"/reports/{report.run_id}/tools/{link.link_id}/tracks"
@@ -193,5 +209,43 @@ def test_track_page_uses_attached_selection_and_protects_write(
     assert "revision=revision-003" in saved.headers["location"] and "frame=68" in saved.headers["location"]
     assert client.get(saved.headers["location"]).status_code == 200
     assert calls[-1][0] == "/cases/mig02-relative/calibration/revision-003?frame=68"
+    replay_url = url.removesuffix("tracks") + "replay"
+    replay_page = client.get(replay_url, params={"frame": 68})
+    assert replay_page.status_code == 200
+    assert "replay-adapter.js" in replay_page.text
+    assert "Incident analysis" in replay_page.text and "Movement" in replay_page.text
+    assert "127.0.0.1:8766" not in replay_page.text
+    scene_fields = {
+        "csrf_token": token[1],
+        "reviewer": "Reviewer",
+        "reason": "Scene edit",
+        "action": "scene_save",
+        "action_id": "00000000-0000-0000-0000-000000000010",
+        "document": "{}",
+        "scene_revision": "initial",
+        "marker_revision": "initial",
+    }
+    count = len(calls)
+    assert client.post(replay_url, data={**scene_fields, "csrf_token": "bad"}).status_code == 403
+    assert len(calls) == count
+    assert client.post(replay_url, data=scene_fields).status_code == 200
+    assert calls[-1][1]["document"] == {}
+    assert calls[-1][0] == f"/cases/mig02-relative/replay/{envelope['sources'][0]['reconstruction_run']}"
+    assessment_fields = {
+        **scene_fields,
+        "action": "incident_review",
+        "target_kind": "assessment",
+        "target_id": "assessment-1",
+        "decision_action": "modify",
+        "modified_outcome": "NO_SUPPORTED_CONTRIBUTOR",
+        "change_contributors": "yes",
+        "modified_contributing_track_ids": "",
+    }
+    assert client.post(replay_url, data=assessment_fields).status_code == 200
+    assert calls[-1][1]["decision"]["modified_contributing_track_ids"] == []
+    video = client.get(replay_url + "/video", headers={"Range": "bytes=0-15"})
+    assert video.status_code == 206 and video.content == b"0123456789abcdef"
+    assert video.headers["content-range"] == "bytes 0-15/100"
+    assert str(calls[-1][1]) == "bytes=0-15"
     monkeypatch.setenv("INCIDENTDESK_NATIVE_TOOLS", "false")
     assert client.get(url).status_code == 404
