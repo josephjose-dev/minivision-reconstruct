@@ -33,7 +33,12 @@ from minivision_reconstruct.reconstruction.export import (
     export_reconstruction,
 )
 
-from integration.tools_worker.evidence import load_evidence, source_frame
+from integration.tools_worker.evidence import (
+    VerificationCache,
+    confined_file,
+    load_evidence,
+    source_frame,
+)
 from integration.tools_worker.writes import IdempotentWrites, WriteConflict
 
 
@@ -54,10 +59,7 @@ def safe_file(base, relative):
     if not path.parts or path.is_absolute() or ".." in path.parts or "\\" in relative:
         raise ValueError("Unsafe producer path")
     result = base / relative
-    if (
-        not result.resolve(strict=True).is_relative_to(base.resolve(strict=True))
-        or not result.is_file()
-    ):
+    if not result.resolve(strict=True).is_relative_to(base.resolve(strict=True)) or not result.is_file():
         raise ValueError("Unsafe producer path")
     return result
 
@@ -71,6 +73,31 @@ def manifest_paths(run):
 
 def routes(root, select_case, exports_root=None):
     writes = IdempotentWrites()
+    verification = VerificationCache()
+
+    def media_context(request):
+        from integration.tools_worker.app import confined_child
+
+        case_id, run_id = request.path_params["case_id"], request.path_params["run_id"]
+
+        # Hot reads check the actual ancestry/references instead of enumerating a case.
+        def selected(base, identifier):
+            case = confined_child(base, identifier)
+            confined_file(case, "metadata/evidence_manifest.json")
+            return case
+
+        case, evidence, video = load_evidence(root, case_id, selected, verification)
+        run = confined_child(case / "analysis/reconstruction", run_id)
+        manifest_path = confined_file(case, f"analysis/reconstruction/{run_id}/manifest.json")
+        manifest = json.loads(manifest_path.read_bytes())
+        if manifest["case_id"] != case_id or manifest["run_id"] != run_id:
+            raise ValueError("Wrong reconstruction")
+        for name in ("video", "tracks", "calibration"):
+            path = confined_file(root, manifest[f"source_{name}_path"])
+            if not path.resolve().is_relative_to(case):
+                raise ValueError("Wrong case reference")
+            verification.verify(path, manifest[f"source_{name}_sha256"])
+        return evidence, video, run, manifest
 
     def context(request, values):
         from integration.tools_worker.app import confined_child
@@ -111,30 +138,31 @@ def routes(root, select_case, exports_root=None):
 
     def read(request):
         values = dict(request.query_params)
-        case, evidence, video, run, media = context(request, values)
         resource = request.path_params.get("resource", "")
-        if resource == "bundle":
-            return Response(
-                media.bundle.model_dump_json(), media_type="application/json"
-            )
-        if resource == "video":
-            return FileResponse(run / "replay.mp4", media_type="video/mp4")
-        if resource.startswith("frame/"):
-            frame = source_frame(evidence, video, int(resource.removeprefix("frame/")))
-            success, image = cv2.imencode(".png", frame.image)
-            if not success:
-                raise ValueError("Cannot render frame")
-            return Response(image.tobytes(), media_type="image/png")
-        if resource.startswith("assets/"):
+        if resource == "video" or resource.startswith(("assets/", "frame/")):
+            evidence, video, run, manifest = media_context(request)
+            if resource == "video":
+                proxy = confined_file(run, "replay.mp4")
+                artifact = next((item for item in manifest["artifacts"] if item["filename"] == "replay.mp4"), None)
+                if artifact is None:
+                    raise ValueError("Missing replay artifact")
+                verification.verify(proxy, artifact["sha256"])
+                return FileResponse(proxy, media_type="video/mp4")
+            if resource.startswith("frame/"):
+                frame = source_frame(evidence, video, int(resource.removeprefix("frame/")))
+                success, image = cv2.imencode(".png", frame.image)
+                if not success:
+                    raise ValueError("Cannot render frame")
+                return Response(image.tobytes(), media_type="image/png")
             filename = resource.removeprefix("assets/")
             if filename not in {"workspace.js", "workspace.css", "renderer.js"}:
                 raise ValueError("Unknown asset")
             return FileResponse(
-                ASSET_DIRECTORY / filename,
-                media_type="text/css"
-                if filename.endswith(".css")
-                else "text/javascript",
+                ASSET_DIRECTORY / filename, media_type="text/css" if filename.endswith(".css") else "text/javascript"
             )
+        case, evidence, video, run, media = context(request, values)
+        if resource == "bundle":
+            return Response(media.bundle.model_dump_json(), media_type="application/json")
         if resource.startswith("snapshot/"):
             return FileResponse(
                 safe_file(run / "snapshots", resource.removeprefix("snapshot/")),
@@ -152,44 +180,22 @@ def routes(root, select_case, exports_root=None):
         }
         if values.get("incident_run"):
             incident, movement = incident_run(case, run, values)
-            motion = load_movement_run(
-                str(movement), sha256_file(movement / "manifest.json")
-            )
+            motion = load_movement_run(str(movement), sha256_file(movement / "manifest.json"))
             frame_number = int(values.get("frame", 0))
             data.update(
                 incident_runs=[incident.name],
                 review_revisions=review.review_revisions(incident),
-                incidents=jsonable(
-                    review.effective_view(
-                        incident, values.get("review_revision", "initial")
-                    )
-                ),
+                incidents=jsonable(review.effective_view(incident, values.get("review_revision", "initial"))),
                 movement={
                     "manifest": jsonable(motion.manifest),
                     "events": jsonable(motion.events),
                     "sequence": jsonable(motion.sequence),
                     "lanes": motion.lanes,
                     "source_frame": frame_number,
-                    "movement": jsonable(
-                        tuple(
-                            item
-                            for item in motion.movement
-                            if item.source_frame == frame_number
-                        )
-                    ),
-                    "smoothed": jsonable(
-                        tuple(
-                            item
-                            for item in motion.smoothed
-                            if item.source_frame == frame_number
-                        )
-                    ),
+                    "movement": jsonable(tuple(item for item in motion.movement if item.source_frame == frame_number)),
+                    "smoothed": jsonable(tuple(item for item in motion.smoothed if item.source_frame == frame_number)),
                     "separation": jsonable(
-                        tuple(
-                            item
-                            for item in motion.separation
-                            if item.source_frame == frame_number
-                        )
+                        tuple(item for item in motion.separation if item.source_frame == frame_number)
                     ),
                 },
             )
@@ -220,9 +226,7 @@ def routes(root, select_case, exports_root=None):
             revision = body["review_revision"]
             if action == "incident_review":
                 if revision != review.review_revisions(incident)[-1]:
-                    raise ValueError(
-                        "Select the latest review revision to record a decision"
-                    )
+                    raise ValueError("Select the latest review revision to record a decision")
                 decision = ReviewDecision.model_validate(
                     {
                         **body["decision"],
@@ -232,17 +236,13 @@ def routes(root, select_case, exports_root=None):
                 )
                 saved = review.save_review_revision(
                     incident,
-                    review.with_decision(
-                        review.load_review(incident, revision).decisions, decision
-                    ),
+                    review.with_decision(review.load_review(incident, revision).decisions, decision),
                     body["reviewer"],
                 )
             elif action == "export_attach":
                 from integration.tools_worker.bundle_export import export_bundle
 
-                result = export_bundle(
-                    exports_root, case, run, incident, evidence, body
-                )
+                result = export_bundle(exports_root, case, run, incident, evidence, body)
                 return JSONResponse(result)
             else:
                 saved = review.export_reviewed_view(incident, revision)
@@ -251,17 +251,11 @@ def routes(root, select_case, exports_root=None):
             with socket.socket() as temporary:
                 temporary.bind(("127.0.0.1", 0))
                 port = temporary.getsockname()[1]
-            media = ReplayMediaConnector(
-                root, run, body["scene_revision"], body["marker_revision"], port
-            )
+            media = ReplayMediaConnector(root, run, body["scene_revision"], body["marker_revision"], port)
             media.start()
             try:
                 if action == "snapshot_request":
-                    saved = (
-                        run
-                        / "snapshots"
-                        / f"frame-{int(body['source_frame'])}-{uuid4().hex}.png"
-                    )
+                    saved = run / "snapshots" / f"frame-{int(body['source_frame'])}-{uuid4().hex}.png"
                     export_snapshot(media, saved, int(body["source_frame"]))
                     result = {"snapshot": saved.name}
                 else:
@@ -298,9 +292,7 @@ def routes(root, select_case, exports_root=None):
                 raise ValueError("Object required")
             return await run_in_threadpool(write, request, body)
         except WriteConflict as error:
-            return JSONResponse(
-                {"error": str(error), "write_state": "refused"}, status_code=409
-            )
+            return JSONResponse({"error": str(error), "write_state": "refused"}, status_code=409)
         except (ValueError, KeyError, TypeError, AttributeError):
             return JSONResponse(
                 {
@@ -313,14 +305,11 @@ def routes(root, select_case, exports_root=None):
             refused = (
                 isinstance(error, EvidenceError)
                 and isinstance(body, dict)
-                and body.get("action")
-                in {"scene_save", "marker_save", "incident_review"}
+                and body.get("action") in {"scene_save", "marker_save", "incident_review"}
             )
             return JSONResponse(
                 {
-                    "error": "Replay validation refused"
-                    if refused
-                    else "Replay completion was not confirmed",
+                    "error": "Replay validation refused" if refused else "Replay completion was not confirmed",
                     **({"write_state": "refused"} if refused else {}),
                 },
                 status_code=422 if refused else 503,
@@ -329,20 +318,14 @@ def routes(root, select_case, exports_root=None):
     async def completed(request):
         try:
             body = await request.json()
-            result = writes.lookup(
-                (request.path_params["case_id"], request.path_params["run_id"]), body
-            )
+            result = writes.lookup((request.path_params["case_id"], request.path_params["run_id"]), body)
             if result is None:
-                raise WriteConflict(
-                    "Completed action unavailable; inspect revision and attachment history"
-                )
+                raise WriteConflict("Completed action unavailable; inspect revision and attachment history")
             return result
         except (ValueError, KeyError, TypeError) as error:
             return JSONResponse(
                 {
-                    "error": str(error)
-                    if isinstance(error, WriteConflict)
-                    else "Invalid completed-action query",
+                    "error": str(error) if isinstance(error, WriteConflict) else "Invalid completed-action query",
                     "write_state": "refused",
                 },
                 status_code=409,
@@ -350,8 +333,6 @@ def routes(root, select_case, exports_root=None):
 
     return [
         Route("/cases/{case_id}/replay/{run_id}", endpoint, methods=["GET", "POST"]),
-        Route(
-            "/cases/{case_id}/replay/{run_id}/completed", completed, methods=["POST"]
-        ),
+        Route("/cases/{case_id}/replay/{run_id}/completed", completed, methods=["POST"]),
         Route("/cases/{case_id}/replay/{run_id}/{resource:path}", endpoint),
     ]
