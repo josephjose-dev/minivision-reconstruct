@@ -171,3 +171,56 @@ def test_package_bytes_and_timestamps_do_not_depend_on_the_database_session_time
     assert len(stamps) >= 4
     assert all(stamp.endswith("+00:00") for stamp in stamps), stamps
     assert manifest["approved_at"] in html
+
+
+def _page(head: str = "", body: str = "<p>Report</p>") -> bytes:
+    return f'<!doctype html><html><head><meta charset="utf-8">{head}</head><body>{body}</body></html>'.encode()
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        "<style>@import url(https://example.org/a.css);</style>",
+        "<style>@IMPORT 'https://example.org/a.css';</style>",
+        "<style>body{background:url(https://example.org/a.png)}</style>",
+        "<style>body{background:URL( 'http://example.org/a.png' )}</style>",
+        '<style>body{background:url("data:image/png;base64,AAAA")}</style>',
+        "<style>body{background:image-set('https://example.org/a.png' 1x)}</style>",
+        "<style>body{color:red}</style><style>@import 'x.css';",  # unclosed second style is still scanned
+        '<meta http-equiv="refresh" content="0;url=https://example.org/">',
+        '<meta HTTP-EQUIV=" Refresh " content="5">',
+        '<link rel="prefetch" href="data:text/css;base64,Ym9keXt9">',
+        '<link rel="preload" href="https://example.org/a.css" as="style">',
+        '<link rel="dns-prefetch" href="https://example.org/">',
+        '<link rel="Preconnect" href="https://example.org/">',
+        '<link rel="stylesheet preload" href="data:text/css;base64,Ym9keXt9">',
+    ],
+)
+def test_html_refuses_remaining_active_network_hints(head: str) -> None:
+    from incident_report.web.package_safety import UnsafePayload, validate_payload
+
+    with pytest.raises(UnsafePayload, match="report.html"):
+        validate_payload("report.html", _page(head))
+
+
+def test_html_refuses_ping_attribute() -> None:
+    from incident_report.web.package_safety import UnsafePayload, validate_payload
+
+    with pytest.raises(UnsafePayload, match="report.html"):
+        validate_payload(
+            "report.html", _page(body='<a href="https://example.org/law" ping="https://example.org/p">x</a>')
+        )
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        "<style>@font-face{font-family:F;src:url(data:font/woff2;base64,AAAA)}body{color:#111}</style>",
+        '<meta http-equiv="content-type" content="text/html; charset=utf-8">',
+        '<link rel="stylesheet" href="data:text/css;base64,Ym9keXt9">',
+    ],
+)
+def test_html_keeps_inert_styles_and_metadata(head: str) -> None:
+    from incident_report.web.package_safety import validate_payload
+
+    validate_payload("report.html", _page(head, '<a href="https://example.org/law">source</a>'))

@@ -94,10 +94,29 @@ def _json_text(path: str, text: str, evidence_root: str | None) -> None:
             _text(string, evidence_root)
 
 
+def _css(css: str) -> None:
+    """Allow only embedded woff2 fonts; every other CSS resource reference could fetch from the network."""
+    lowered = css.lower()
+    if (
+        "@import" in lowered
+        or "image-set(" in lowered
+        or any(
+            not url.strip("\"' ").lower().startswith("data:font/woff2;base64,")
+            for url in re.findall(r"url\((.*?)\)", css, re.S | re.I)
+        )
+    ):
+        raise UnsafePayload("A stylesheet contains an active network resource.")
+
+
+# Resource hints make the browser contact a host before anyone clicks a citation.
+_NETWORK_HINTS = {"prefetch", "preload", "dns-prefetch", "preconnect", "prerender", "modulepreload"}
+
+
 class _OfflineHTML(HTMLParser):
     def __init__(self, evidence_root: str | None = None) -> None:
         super().__init__()
         self.evidence_root = evidence_root
+        self.in_style = False
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag in {
@@ -115,9 +134,16 @@ class _OfflineHTML(HTMLParser):
             "base",
         }:
             raise UnsafePayload("An HTML payload contains an active resource.")
+        values = {key: value or "" for key, value in attrs}
+        if tag == "style":
+            self.in_style = True
+        if tag == "meta" and values.get("http-equiv", "").strip().lower() == "refresh":
+            raise UnsafePayload("An HTML payload contains a redirect.")
+        if tag == "link" and _NETWORK_HINTS & set(values.get("rel", "").lower().split()):
+            raise UnsafePayload("An HTML payload contains a network resource hint.")
         for key, value in attrs:
             value = value or ""
-            if key.startswith("on") or key in {"src", "srcset", "style", "action"}:
+            if key.startswith("on") or key in {"src", "srcset", "style", "action", "ping"}:
                 raise UnsafePayload("An HTML payload contains an active resource attribute.")
             if key == "href" and tag == "link":
                 if not value.startswith("data:text/css;base64,"):
@@ -126,11 +152,7 @@ class _OfflineHTML(HTMLParser):
                     css = base64.b64decode(value.split(",", 1)[1].split("#")[0], validate=True).decode()
                 except (ValueError, UnicodeError):
                     raise UnsafePayload("An embedded stylesheet is invalid.") from None
-                if "@import" in css.lower() or any(
-                    not url.strip("\"' ").startswith("data:font/woff2;base64,")
-                    for url in re.findall(r"url\((.*?)\)", css, re.S)
-                ):
-                    raise UnsafePayload("A stylesheet contains an active network resource.")
+                _css(css)
             elif key == "href":
                 if not (value.startswith("#") or value.startswith(("https://", "http://"))):
                     raise UnsafePayload("An HTML link has an unsafe path or scheme.")
@@ -141,7 +163,13 @@ class _OfflineHTML(HTMLParser):
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.handle_starttag(tag, attrs)
 
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "style":
+            self.in_style = False
+
     def handle_data(self, data: str) -> None:
+        if self.in_style:
+            _css(data)
         _text(data, self.evidence_root)
 
 
