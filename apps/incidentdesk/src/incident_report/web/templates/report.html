@@ -2,7 +2,7 @@
 {% block title %}{% if sample %}{{ banner_text }}{% else %}Report{% endif %}{% endblock %}
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" href="/static/css/print.css" media="print">
+<link rel="stylesheet" href="{{ embedded_css.print if embedded_css else '/static/css/print.css' }}" media="print">
 {% endblock %}
 {% from "review_citation.html" import citation with context %}
 {% from "report_facts.html" import fact_list with context %}

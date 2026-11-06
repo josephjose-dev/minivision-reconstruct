@@ -175,3 +175,25 @@ def test_old_approved_print_stays_identical_after_new_version_and_override(
     old_screen = client.get(root + "?version=1")
     assert f'href="{root}/print?version=1"' in old_screen.text
     assert "Synthetic second version" not in old_screen.text
+
+
+def test_print_embeds_css_and_fonts_without_active_external_resources(workspace: tuple[TestClient, Report]) -> None:
+    import base64
+
+    from test_review_workspace_r2 import Markup
+
+    client, report = workspace
+    page = client.get(f"/reports/{report.run_id}/print")
+    styles = [
+        attrs.get("href") or ""
+        for tag, attrs in Markup(page.text).tags
+        if tag == "link" and attrs.get("rel") == "stylesheet"
+    ]
+    assert styles and all(href.startswith("data:text/css;base64,") for href in styles)
+    css = "\n".join(base64.b64decode(href.split(",", 1)[1].split("#")[0]).decode() for href in styles)
+    assert "@page" in css and "size: A4" in css
+    assert "data:font/woff2;base64," in css
+    assert "../fonts/" not in css and "https://" not in css
+    policy = page.headers["Content-Security-Policy"]
+    assert "default-src 'self'" in policy and "unsafe-inline" not in policy
+    assert "style-src" in policy and "font-src" in policy

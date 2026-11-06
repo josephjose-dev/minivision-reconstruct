@@ -76,6 +76,7 @@ from incident_report.web.access import (
 )
 from incident_report.web.body_limit import BodyTooLargeError, read_limited_body
 from incident_report.web.decisions import decision_context, install_decisions
+from incident_report.web.printing import render_print
 from incident_report.web.questions import install_questions
 from incident_report.web.reconstruction import install_reconstruction, reconstruction_context
 from incident_report.web.review import accessible_report, install_review
@@ -682,9 +683,10 @@ def create_app(
             return error_page(request, exc.status_code, str(exc.detail))
         except DecisionRefused as exc:
             return error_page(request, exc.status_code, exc.message)
-        return templates.TemplateResponse(
-            request, "report_print.html", {"report": run.report, "print_view": True, **context}
-        )
+        if run.report is None:
+            return error_page(request, 404, "No report with that id.")
+        request.state.embedded_print = True
+        return HTMLResponse(render_print(run.report, context["decision"]))
 
     install_questions(app, log, question_store, qa_connection, evidence, error_page)
     install_review(app, log, evidence)

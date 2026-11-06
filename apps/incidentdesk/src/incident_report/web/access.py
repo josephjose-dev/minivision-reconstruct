@@ -193,6 +193,9 @@ def install_access(
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
         )
+        if getattr(request.state, "embedded_print", False):
+            # Only the script-free print renderer embeds fixed local styles and fonts.
+            response.headers["Content-Security-Policy"] += "; style-src 'self' data:; font-src 'self' data:"
         if request.url.scheme == "https":
             response.headers["Strict-Transport-Security"] = f"max-age={settings.hsts_seconds}"
         return response
