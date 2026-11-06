@@ -888,3 +888,5 @@ button:hover {
   background: var(--color-accent-tint);
   color: var(--color-text);
 }
+/* Functional producer tools share the app's existing forms and tables. */
+.native-source-image { max-width: 100%; height: auto; }

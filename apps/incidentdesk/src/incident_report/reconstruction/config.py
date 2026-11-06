@@ -6,6 +6,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def native_tools_enabled(env: Mapping[str, str] | None = None) -> bool:
+    values = os.environ if env is None else env
+    value = values.get("INCIDENTDESK_NATIVE_TOOLS", "false").strip().lower()
+    if value not in {"false", "0", "true", "1", ""}:
+        raise ValueError("INCIDENTDESK_NATIVE_TOOLS must be true or false")
+    return value in {"true", "1"}
+
+
 @dataclass(frozen=True)
 class ReconstructionSettings:
     enabled: bool = False
