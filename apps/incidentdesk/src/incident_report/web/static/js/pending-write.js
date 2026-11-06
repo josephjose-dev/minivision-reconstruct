@@ -4,6 +4,13 @@ function copyFields(fields) {
   for (const [key, value] of fields.entries()) copy.append(key, value);
   return copy;
 }
+// Statuses from the app itself that prove the write handler never ran, so the intent can be released.
+const NEVER_RAN = new Set([400, 403, 404, 405, 413, 422]);
+function refusalMessage(response, data) {
+  if (typeof data?.error === "string" && data.error) return data.error;
+  if (typeof data?.detail === "string" && data.detail) return data.detail;
+  return `This action was refused (HTTP ${response.status}).`;
+}
 export class PendingWrite {
   // Wrapped so fetch keeps `this` = window; a stored bare fetch throws "Illegal invocation" in browsers.
   constructor(fetcher = (...args) => globalThis.fetch(...args)) { this.fetcher = fetcher; this.current = null; }
@@ -32,7 +39,8 @@ export class PendingWrite {
     try { data = await response.json(); }
     catch { if (response.ok) throw new Error("Result was not confirmed. Retry the pending action."); }
     if (data?.detail?.write_state === "refused") data = data.detail;
-    if (response.ok || data?.write_state === "refused") this.current = null;
-    return {response, data};
+    const released = !response.ok && (data?.write_state === "refused" || NEVER_RAN.has(response.status));
+    if (response.ok || released) this.current = null;
+    return released ? {response, data, released, message: refusalMessage(response, data)} : {response, data};
   }
 }

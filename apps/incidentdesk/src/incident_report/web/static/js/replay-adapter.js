@@ -49,7 +49,7 @@ async function save(action, value = {}, retry = false) {
         link.href = failure.review_url; link.textContent = "Open incident and attach the completed export"; link.hidden = false;
         throw new Error(`${failure.error} Bundle: ${failure.bundle}`);
       }
-      if (failure?.write_state === "refused") throw new Error(failure.error || "Action refused. Correct the input and submit again.");
+      if (attempt.released) throw new Error(attempt.message);
       throw new Error(typeof failure?.detail === "string" ? failure.detail : "Save was not confirmed. Check the selected inputs and inspect saved revisions before retrying.");
     }
     const result = attempt.data;

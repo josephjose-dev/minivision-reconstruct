@@ -68,3 +68,49 @@ test("R3-2: a thrown fetch keeps the action pending and says it was not sent", a
   assert.deepEqual(sentIds, ["action-fixed-1"]);
   assert.equal(pending.pending, false);
 });
+
+// R4-2: a response from the app that proves the write handler did not run must release the pending action.
+for (const status of [400, 403, 404, 405, 413, 422]) {
+  test(`R4-2: HTTP ${status} releases the pending action and shows a message`, async () => {
+    const pending = new PendingWrite(async () => new Response("<html>nope</html>", {status}));
+    const result = await pending.start("/write", new FormData());
+    assert.equal(pending.pending, false, "a fresh action must be allowed");
+    assert.equal(result.released, true);
+    assert.match(result.message, new RegExp(`HTTP ${status}`));
+  });
+}
+
+test("R4-2: the server's own message is shown when the refusal carries one", async () => {
+  const withError = new PendingWrite(async () => new Response(JSON.stringify({error: "Reviewer is required"}), {status: 422}));
+  assert.equal((await withError.start("/write", new FormData())).message, "Reviewer is required");
+  const withDetail = new PendingWrite(async () => new Response(JSON.stringify({detail: "Not Found"}), {status: 404}));
+  assert.equal((await withDetail.start("/write", new FormData())).message, "Not Found");
+  const validationList = new PendingWrite(async () => new Response(JSON.stringify({detail: [{msg: "x"}]}), {status: 422}));
+  assert.match((await validationList.start("/write", new FormData())).message, /HTTP 422/);
+});
+
+for (const status of [500, 502, 503, 504]) {
+  test(`R4-2: HTTP ${status} keeps the write pending`, async () => {
+    const pending = new PendingWrite(async () => new Response("down", {status}));
+    const result = await pending.start("/write", new FormData());
+    assert.equal(pending.pending, true);
+    assert.notEqual(result.released, true);
+  });
+}
+
+test("R4-2: HTTP 409 without a refusal marker stays pending as before; with one it is released", async () => {
+  const stale = new PendingWrite(async () => new Response(JSON.stringify({detail: "stale"}), {status: 409}));
+  await stale.start("/write", new FormData());
+  assert.equal(stale.pending, true);
+  const refused = new PendingWrite(async () => new Response(JSON.stringify({error: "Stale selection", write_state: "refused"}), {status: 409}));
+  const result = await refused.start("/write", new FormData());
+  assert.equal(refused.pending, false);
+  assert.equal(result.message, "Stale selection");
+});
+
+test("R4-2: a success is not marked released and has no message", async () => {
+  const pending = new PendingWrite(async () => new Response(JSON.stringify({revision: "revision-001"}), {status: 200}));
+  const result = await pending.start("/write", new FormData());
+  assert.equal(pending.pending, false);
+  assert.equal(result.message, undefined);
+});

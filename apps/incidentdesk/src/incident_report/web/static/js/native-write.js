@@ -11,12 +11,14 @@ async function send(fields) {
   retry.disabled = true;
   status.textContent = "Saving review action…";
   try {
-    const {response, data} = fields ? await pending.start(form.action || location.pathname, fields) : await pending.retry();
+    // getAttribute, not form.action: a control named "action" shadows the property in browsers.
+    const attempt = fields ? await pending.start(form.getAttribute("action") || location.pathname, fields) : await pending.retry();
+    const {response, data} = attempt;
     if (response.ok) {
       status.textContent = "Saved. Loading the current revision…";
       location.assign(data.redirect);
     } else {
-      status.textContent = data?.error || "Completion was not confirmed. Retry the pending action.";
+      status.textContent = attempt.message || data?.error || "Completion was not confirmed. Retry the pending action.";
       if (!pending.pending) form.elements.action_id.value = crypto.randomUUID();
     }
   } catch (error) { status.textContent = error.message; }

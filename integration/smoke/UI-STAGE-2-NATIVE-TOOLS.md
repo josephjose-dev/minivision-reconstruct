@@ -59,3 +59,12 @@ Not executed by Codex as a manual browser smoke. Automated parity/HTTP checks an
 known original-suite failures are recorded separately in the donor result; Claude
 records browser outcomes and independent acceptance before merge. MIG-05 merges
 first; this branch may then need rebase/review. No push/tag/merge is authorized here.
+
+## Real-browser regression check (R4-3, 5 lines)
+
+Automated: `node --test integration/tools_worker/test_native_forms.mjs` runs the real page scripts against a DOM shim
+that copies the browser's form-property shadowing. Manual, in Chromium with DevTools Network open, on the track page and
+the calibration page: (1) press Save; (2) the POST goes to `/reports/<run>/tools/<link>/tracks|calibration`, never to a
+URL containing `object`; (3) no "Illegal invocation" in the console; (4) force a 404 (edit the form `action` attribute in
+DevTools) and confirm the page shows "refused (HTTP 404)", hides Retry, and the next Save is allowed; (5) stop the app
+for a moment, press Save, and confirm the page keeps Retry and the same action ID.

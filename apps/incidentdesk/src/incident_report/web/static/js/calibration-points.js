@@ -32,7 +32,8 @@ form.addEventListener("submit", async (event) => {
   try {
     const fields = new FormData(form);
     fields.set("action", "preview");
-    const response = await fetch(form.action || location.pathname, {method: "POST", body: fields, credentials: "same-origin"});
+    // getAttribute, not form.action: the "action" buttons shadow that property in browsers.
+    const response = await fetch(form.getAttribute("action") || location.pathname, {method: "POST", body: fields, credentials: "same-origin"});
     if (!response.ok) throw new Error("Calibration refused. Check points, units, tolerance and reviewer attribution.");
     const data = await response.json();
     const doc = data.calibration;
