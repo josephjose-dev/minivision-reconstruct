@@ -1,4 +1,5 @@
 "use strict";
+import {PendingWrite} from "/static/js/pending-write.js";
 const form = document.getElementById("replay-write");
 const base = form.dataset.base;
 const selection = document.getElementById("replay-selection");
@@ -8,6 +9,8 @@ const host = document.getElementById("native-replay-host");
 const {default: mount} = await import(`${base}/assets/workspace.js`);
 let dispose = null;
 let busy = false;
+const pendingWrite = new PendingWrite();
+const retryButton = document.getElementById("retry-native-write");
 function query() { return new URLSearchParams(new FormData(selection)); }
 function setRevision(name, value) {
   const select = selection.elements.namedItem(name);
@@ -24,9 +27,10 @@ function open(seek = null, preserve = false) {
     setTriggerValue: (action, value) => { void save(action, value); }});
   form.elements.namedItem("reviewer").oninput = () => { data.reviewer = form.elements.namedItem("reviewer").value; };
 }
-async function save(action, value = {}) {
+async function save(action, value = {}, retry = false) {
   if (busy) { status.textContent = "Wait for the current save to finish."; return; }
-  if (!form.reportValidity()) return;
+  if (!retry && pendingWrite.pending) { status.textContent = "An unconfirmed action is pending. Use Retry pending action before starting another write."; return; }
+  if (!retry && !form.reportValidity()) return;
   busy = true;
   status.textContent = "Saving producer revision…";
   try {
@@ -36,18 +40,19 @@ async function save(action, value = {}) {
     fields.set("action_id", value.action_id || crypto.randomUUID());
     if (value.document) fields.set("document", JSON.stringify(value.document));
     fields.set("source_frame", String(value.source_frame ?? host.querySelector(".replay-root").dataset.sourceFrame ?? 0));
-    const response = await fetch(base, {method: "POST", body: fields, credentials: "same-origin"});
+    const attempt = retry ? await pendingWrite.retry() : await pendingWrite.start(base, fields);
+    const response = attempt.response;
     if (!response.ok) {
-      let failure = null;
-      try { failure = await response.json(); } catch {}
+      const failure = attempt.data;
       if (failure && /^native-[a-f0-9]{32}$/.test(failure.bundle || "")) {
         const link = document.getElementById("reattach-review");
         link.href = failure.review_url; link.textContent = "Open incident and attach the completed export"; link.hidden = false;
         throw new Error(`${failure.error} Bundle: ${failure.bundle}`);
       }
+      if (failure?.write_state === "refused") throw new Error(failure.error || "Action refused. Correct the input and submit again.");
       throw new Error(typeof failure?.detail === "string" ? failure.detail : "Save was not confirmed. Check the selected inputs and inspect saved revisions before retrying.");
     }
-    const result = await response.json();
+    const result = attempt.data;
     if (result.new_link_id) {
       const link = document.getElementById("reattach-review");
       link.href = result.review_url; link.hidden = false;
@@ -65,8 +70,9 @@ async function save(action, value = {}) {
     }
     status.textContent = `Saved ${result.revision || result.export || result.snapshot}. Open saved selections to refresh the incident tables.`;
   } catch (error) { status.textContent = error.message; }
-  finally { busy = false; }
+  finally { busy = false; retryButton.hidden = !pendingWrite.pending; }
 }
+retryButton.addEventListener("click", () => { void save("", {}, true); });
 form.addEventListener("submit", event => { event.preventDefault(); void save(event.submitter.value); });
 for (const button of document.querySelectorAll(".native-seek")) button.addEventListener("click", () => open({source_frame: Number(button.dataset.frame), track_id: null, action_id: crypto.randomUUID()}, true));
 open();

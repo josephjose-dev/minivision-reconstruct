@@ -1,14 +1,11 @@
 """Same-origin replay transport and public producer save adapters."""
 
-from collections import OrderedDict
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, datetime
-from hashlib import sha256
 import json
 from pathlib import PurePosixPath
 import socket
-from threading import Lock
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import cv2
 from pydantic import BaseModel
@@ -37,6 +34,7 @@ from minivision_reconstruct.reconstruction.export import (
 )
 
 from integration.tools_worker.evidence import load_evidence, source_frame
+from integration.tools_worker.writes import IdempotentWrites, WriteConflict
 
 
 def jsonable(value):
@@ -72,8 +70,7 @@ def manifest_paths(run):
 
 
 def routes(root, select_case, exports_root=None):
-    lock = Lock()
-    completed = OrderedDict()
+    writes = IdempotentWrites()
 
     def context(request, values):
         from integration.tools_worker.app import confined_child
@@ -198,115 +195,101 @@ def routes(root, select_case, exports_root=None):
             )
         return JSONResponse(data)
 
-    def write(request, body):
+    def perform(request, body):
         if not body["reviewer"].strip() or not body["reason"].strip():
             raise ValueError("Attribution required")
-        action_id = str(UUID(body["action_id"]))
-        key = (request.path_params["case_id"], request.path_params["run_id"], action_id)
-        digest = sha256(
-            json.dumps(body, sort_keys=True, allow_nan=False).encode()
-        ).hexdigest()
-        with lock:
-            if key in completed:
-                old_digest, result = completed[key]
-                if digest != old_digest:
-                    raise ValueError("Action ID reused with different input")
+        case, evidence, video, run, media = context(request, body)
+        action = body["action"]
+        if action == "scene_save":
+            saved = save_scene_revision(
+                run,
+                SceneDocument.model_validate(body["document"]),
+                body["reviewer"],
+            )
+            result = {"revision": saved.name, "category": "scene"}
+        elif action == "marker_save":
+            saved = save_marker_revision(
+                run,
+                MarkerDocument.model_validate(body["document"]),
+                body["reviewer"],
+                media.bundle,
+            )
+            result = {"revision": saved.name, "category": "marker"}
+        elif action in {"incident_review", "incident_export", "export_attach"}:
+            incident, movement = incident_run(case, run, body)
+            revision = body["review_revision"]
+            if action == "incident_review":
+                if revision != review.review_revisions(incident)[-1]:
+                    raise ValueError(
+                        "Select the latest review revision to record a decision"
+                    )
+                decision = ReviewDecision.model_validate(
+                    {
+                        **body["decision"],
+                        "reviewer": body["reviewer"],
+                        "decided_at": datetime.now(UTC).isoformat(),
+                    }
+                )
+                saved = review.save_review_revision(
+                    incident,
+                    review.with_decision(
+                        review.load_review(incident, revision).decisions, decision
+                    ),
+                    body["reviewer"],
+                )
+            elif action == "export_attach":
+                from integration.tools_worker.bundle_export import export_bundle
+
+                result = export_bundle(
+                    exports_root, case, run, incident, evidence, body
+                )
                 return JSONResponse(result)
-            case, evidence, video, run, media = context(request, body)
-            action = body["action"]
-            if action == "scene_save":
-                saved = save_scene_revision(
-                    run,
-                    SceneDocument.model_validate(body["document"]),
-                    body["reviewer"],
-                )
-                result = {"revision": saved.name, "category": "scene"}
-            elif action == "marker_save":
-                saved = save_marker_revision(
-                    run,
-                    MarkerDocument.model_validate(body["document"]),
-                    body["reviewer"],
-                    media.bundle,
-                )
-                result = {"revision": saved.name, "category": "marker"}
-            elif action in {"incident_review", "incident_export", "export_attach"}:
-                incident, movement = incident_run(case, run, body)
-                revision = body["review_revision"]
-                if action == "incident_review":
-                    if revision != review.review_revisions(incident)[-1]:
-                        raise ValueError(
-                            "Select the latest review revision to record a decision"
-                        )
-                    decision = ReviewDecision.model_validate(
-                        {
-                            **body["decision"],
-                            "reviewer": body["reviewer"],
-                            "decided_at": datetime.now(UTC).isoformat(),
-                        }
-                    )
-                    saved = review.save_review_revision(
-                        incident,
-                        review.with_decision(
-                            review.load_review(incident, revision).decisions, decision
-                        ),
-                        body["reviewer"],
-                    )
-                elif action == "export_attach":
-                    from integration.tools_worker.bundle_export import export_bundle
-
-                    result = export_bundle(
-                        exports_root, case, run, incident, evidence, body
-                    )
-                    completed[key] = (digest, result)
-                    while len(completed) > 256:
-                        completed.popitem(last=False)
-                    return JSONResponse(result)
-                else:
-                    saved = review.export_reviewed_view(incident, revision)
-                result = {"revision": saved.name, "category": "review"}
-            elif action in {"snapshot_request", "reconstruction_export"}:
-                with socket.socket() as temporary:
-                    temporary.bind(("127.0.0.1", 0))
-                    port = temporary.getsockname()[1]
-                media = ReplayMediaConnector(
-                    root, run, body["scene_revision"], body["marker_revision"], port
-                )
-                media.start()
-                try:
-                    if action == "snapshot_request":
-                        saved = (
-                            run
-                            / "snapshots"
-                            / f"frame-{int(body['source_frame'])}-{uuid4().hex}.png"
-                        )
-                        export_snapshot(media, saved, int(body["source_frame"]))
-                        result = {"snapshot": saved.name}
-                    else:
-                        saved = run / "exports" / ("export-" + uuid4().hex)
-                        import os
-
-                        export_reconstruction(
-                            media,
-                            saved,
-                            body["scene_revision"],
-                            body["marker_revision"],
-                            int(body.get("source_frame", 0)),
-                            os.environ.get("RECONSTRUCTION_FFMPEG", "ffmpeg"),
-                            lambda current, total: None,
-                        )
-                        result = {"export": saved.name}
-                finally:
-                    media.close()
             else:
-                raise ValueError("Unknown replay action")
-            # Project assumption: retain the last 256 action IDs per worker process,
-            # matching Streamlit's process/session lifetime rather than durable jobs.
-            completed[key] = (digest, result)
-            while len(completed) > 256:
-                completed.popitem(last=False)
-            return JSONResponse(result)
+                saved = review.export_reviewed_view(incident, revision)
+            result = {"revision": saved.name, "category": "review"}
+        elif action in {"snapshot_request", "reconstruction_export"}:
+            with socket.socket() as temporary:
+                temporary.bind(("127.0.0.1", 0))
+                port = temporary.getsockname()[1]
+            media = ReplayMediaConnector(
+                root, run, body["scene_revision"], body["marker_revision"], port
+            )
+            media.start()
+            try:
+                if action == "snapshot_request":
+                    saved = (
+                        run
+                        / "snapshots"
+                        / f"frame-{int(body['source_frame'])}-{uuid4().hex}.png"
+                    )
+                    export_snapshot(media, saved, int(body["source_frame"]))
+                    result = {"snapshot": saved.name}
+                else:
+                    saved = run / "exports" / ("export-" + uuid4().hex)
+                    import os
+
+                    export_reconstruction(
+                        media,
+                        saved,
+                        body["scene_revision"],
+                        body["marker_revision"],
+                        int(body.get("source_frame", 0)),
+                        os.environ.get("RECONSTRUCTION_FFMPEG", "ffmpeg"),
+                        lambda current, total: None,
+                    )
+                    result = {"export": saved.name}
+            finally:
+                media.close()
+        else:
+            raise ValueError("Unknown replay action")
+        return JSONResponse(result)
+
+    def write(request, body):
+        scope = (request.path_params["case_id"], request.path_params["run_id"])
+        return writes.execute(scope, body, lambda: perform(request, body))
 
     async def endpoint(request):
+        body = None
         try:
             if request.method == "GET":
                 return await run_in_threadpool(read, request)
@@ -314,23 +297,61 @@ def routes(root, select_case, exports_root=None):
             if not isinstance(body, dict):
                 raise ValueError("Object required")
             return await run_in_threadpool(write, request, body)
-        except (
-            ValueError,
-            EvidenceError,
-            OSError,
-            KeyError,
-            TypeError,
-            AttributeError,
-            cv2.error,
-        ):
+        except WriteConflict as error:
+            return JSONResponse(
+                {"error": str(error), "write_state": "refused"}, status_code=409
+            )
+        except (ValueError, KeyError, TypeError, AttributeError):
             return JSONResponse(
                 {
-                    "error": "Replay input or save refused; verify selected revisions and attribution"
+                    "error": "Replay input or save refused; verify selected revisions and attribution",
+                    "write_state": "refused",
                 },
                 status_code=422,
+            )
+        except (EvidenceError, OSError, cv2.error) as error:
+            refused = (
+                isinstance(error, EvidenceError)
+                and isinstance(body, dict)
+                and body.get("action")
+                in {"scene_save", "marker_save", "incident_review"}
+            )
+            return JSONResponse(
+                {
+                    "error": "Replay validation refused"
+                    if refused
+                    else "Replay completion was not confirmed",
+                    **({"write_state": "refused"} if refused else {}),
+                },
+                status_code=422 if refused else 503,
+            )
+
+    async def completed(request):
+        try:
+            body = await request.json()
+            result = writes.lookup(
+                (request.path_params["case_id"], request.path_params["run_id"]), body
+            )
+            if result is None:
+                raise WriteConflict(
+                    "Completed action unavailable; inspect revision and attachment history"
+                )
+            return result
+        except (ValueError, KeyError, TypeError) as error:
+            return JSONResponse(
+                {
+                    "error": str(error)
+                    if isinstance(error, WriteConflict)
+                    else "Invalid completed-action query",
+                    "write_state": "refused",
+                },
+                status_code=409,
             )
 
     return [
         Route("/cases/{case_id}/replay/{run_id}", endpoint, methods=["GET", "POST"]),
+        Route(
+            "/cases/{case_id}/replay/{run_id}/completed", completed, methods=["POST"]
+        ),
         Route("/cases/{case_id}/replay/{run_id}/{resource:path}", endpoint),
     ]

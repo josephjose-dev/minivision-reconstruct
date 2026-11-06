@@ -19,7 +19,7 @@ from incident_report.domain import Role
 from incident_report.reconstruction.config import ReconstructionSettings
 from incident_report.reconstruction.config import native_tools_enabled as native_enabled
 from incident_report.reconstruction.database import local_database
-from incident_report.reconstruction.native_client import ToolsUnavailable, ToolsWorker
+from incident_report.reconstruction.native_client import ToolsRefused, ToolsUnavailable, ToolsWorker
 from incident_report.reconstruction.store import Workspace
 from incident_report.runlog import RunLog
 from incident_report.web.access import _check_origin, _csrf_token
@@ -87,7 +87,9 @@ def install_native_tools(
             },
         )
 
-    def selection(request: Request, run_id: uuid.UUID, link_id: uuid.UUID) -> tuple[Any, Any]:
+    def selection(
+        request: Request, run_id: uuid.UUID, link_id: uuid.UUID, completed_only: bool = False
+    ) -> tuple[Any, Any]:
         if not native_enabled() or not settings.enabled:
             raise HTTPException(404, "Native tools are disabled.")
         if getattr(request.state, "attribution", None) is None:
@@ -97,7 +99,8 @@ def install_native_tools(
             raise HTTPException(404, "Report unavailable.")
         with psycopg.connect(local_database(log.database_url)) as connection:
             workspace = Workspace(connection, settings)
-            links = [item for item in workspace.current(run_id) if item.link_id == link_id]
+            candidates = workspace.history(run_id) if completed_only else workspace.current(run_id)
+            links = [item for item in candidates if item.link_id == link_id]
             if not links or not any(
                 view.sha256 == links[0].view_sha256 and view.role != Role.INTERIOR for view in run.report.views
             ):
@@ -109,8 +112,10 @@ def install_native_tools(
             source = next(item for item in decision.envelope.sources if item.view_id == link.source_view_id)
         return link, source
 
-    async def submitted(request: Request, run_id: uuid.UUID, link_id: uuid.UUID) -> tuple[Any, Any, dict[str, str]]:
-        link, source = await run_in_threadpool(selection, request, run_id, link_id)
+    async def submitted(
+        request: Request, run_id: uuid.UUID, link_id: uuid.UUID, completed_only: bool = False
+    ) -> tuple[Any, Any, dict[str, str]]:
+        link, source = await run_in_threadpool(selection, request, run_id, link_id, completed_only)
         if not _check_origin(request):
             raise HTTPException(403, "Cross-origin submission refused.")
         try:
@@ -122,7 +127,7 @@ def install_native_tools(
         if not secrets.compare_digest(fields.get("csrf_token", ""), _csrf_token(request)):
             raise HTTPException(403, "Invalid or missing CSRF token.")
         if not fields.get("reviewer", "").strip() or not fields.get("reason", "").strip():
-            raise HTTPException(422, "Reviewer and reason are required.")
+            raise HTTPException(422, {"error": "Reviewer and reason are required.", "write_state": "refused"})
         return link, source, fields
 
     async def audited_write(
@@ -187,7 +192,7 @@ def install_native_tools(
 
     @app.post("/reports/{run_id}/tools/{link_id}/replay")
     async def save_replay(request: Request, run_id: uuid.UUID, link_id: uuid.UUID) -> Response:
-        link, source, fields = await submitted(request, run_id, link_id)
+        link, source, fields = await submitted(request, run_id, link_id, request.headers.get("x-native-retry") == "1")
         try:
             action = fields.get("action", "")
             if action not in {
@@ -238,6 +243,44 @@ def install_native_tools(
                     body["export_template"] = decision.envelope.model_dump(mode="json")
                     body["source_view_id"] = link.source_view_id
             path = f"/cases/{quote(link.producer_case_id, safe='')}/replay/{quote(source.reconstruction_run, safe='')}"
+            if link.superseded_by is not None:
+                # Historical selections may read completed results, never start writes.
+                result = await run_in_threadpool(ToolsWorker().json, path + "/completed", body)
+                if action == "export_attach":
+                    from incident_report.evidence_import.reader import inspect_bundle
+                    from incident_report.reconstruction.paths import bundle_path
+
+                    if settings.evidence_exports_root is None:
+                        raise ToolsUnavailable("Exports root unavailable")
+                    bundle_name = str(result.get("bundle", ""))
+                    if not re.fullmatch(r"native-[a-f0-9]{32}", bundle_name):
+                        raise ToolsUnavailable("Invalid completed export identifier")
+                    inspected = await run_in_threadpool(
+                        inspect_bundle, bundle_path(settings.evidence_exports_root, bundle_name)
+                    )
+                    with psycopg.connect(local_database(log.database_url)) as connection:
+                        matched = next(
+                            (
+                                item
+                                for item in Workspace(connection, settings).history(run_id)
+                                if item.import_id == inspected.import_id and item.view_sha256 == link.view_sha256
+                            ),
+                            None,
+                        )
+                    if matched is None:
+                        return JSONResponse(
+                            {
+                                "error": "Export completed but this retired selection cannot attach it. Inspect import history and attach from the incident workspace.",
+                                "bundle": bundle_name,
+                                "review_url": f"/reports/{run_id}/review",
+                                "write_state": "refused",
+                            },
+                            status_code=409,
+                        )
+                    result.update(
+                        new_link_id=str(matched.link_id), review_url=f"/reports/{run_id}/review", recovered=True
+                    )
+                return JSONResponse(result)
             result = await audited_write(request, run_id, link_id, body, path, "replay")
             if action == "export_attach":
                 bundle_name = str(result.get("bundle", ""))
@@ -268,12 +311,17 @@ def install_native_tools(
                     )
                 result.update(new_link_id=new_link_id, review_url=f"/reports/{run_id}/review")
             return JSONResponse(result)
+        except ToolsRefused as error:
+            return JSONResponse({"error": str(error), "write_state": "refused"}, status_code=error.status_code)
         except ToolsUnavailable:
             return error_page(
                 request, 503, "The worker did not confirm completion. Inspect saved revisions before submitting again."
             )
         except (ValueError, KeyError, TypeError):
-            return error_page(request, 422, "Check replay fields, attribution and selected revisions.")
+            return JSONResponse(
+                {"error": "Check replay fields, attribution and selected revisions.", "write_state": "refused"},
+                status_code=422,
+            )
         except (OSError, psycopg.Error):
             return error_page(request, 503, "Local audit or tools are unavailable.")
 

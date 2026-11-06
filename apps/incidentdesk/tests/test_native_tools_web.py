@@ -234,6 +234,11 @@ def test_track_page_uses_attached_selection_and_protects_write(
     count = len(calls)
     assert client.post(replay_url, data={**scene_fields, "csrf_token": "bad"}).status_code == 403
     assert len(calls) == count
+    invalid_document = client.post(replay_url, data={**scene_fields, "document": "{"})
+    assert invalid_document.status_code == 422 and invalid_document.json()["write_state"] == "refused"
+    blank_attribution = client.post(replay_url, data={**scene_fields, "reviewer": "   "})
+    assert blank_attribution.status_code == 422 and blank_attribution.json()["detail"]["write_state"] == "refused"
+    assert len(calls) == count
     assert client.post(replay_url, data=scene_fields).status_code == 200
     assert calls[-1][1]["document"] == {}
     assert calls[-1][0] == f"/cases/mig02-relative/replay/{envelope['sources'][0]['reconstruction_run']}"
@@ -288,6 +293,19 @@ def test_track_page_uses_attached_selection_and_protects_write(
         assert "Export completed" in partial.json()["error"]
     attached = client.post(replay_url, data={**scene_fields, "action": "export_attach"})
     assert attached.status_code == 200
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            Workspace, "attach", lambda *args: (_ for _ in ()).throw(AssertionError("readback must not attach"))
+        )
+        recovered = client.post(
+            replay_url, data={**scene_fields, "action": "export_attach"}, headers={"X-Native-Retry": "1"}
+        )
+        assert recovered.status_code == 200
+        assert recovered.json()["new_link_id"] == attached.json()["new_link_id"]
+        assert calls[-1][0].endswith("/completed")
+    count = len(calls)
+    assert client.post(replay_url, data={**scene_fields, "action": "export_attach"}).status_code == 404
+    assert len(calls) == count
     with psycopg.connect(run_log.database_url) as connection:
         workspace = Workspace(connection, settings)
         current = workspace.current(report.run_id)

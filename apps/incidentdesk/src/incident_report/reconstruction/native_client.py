@@ -18,6 +18,12 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
+class ToolsRefused(ToolsUnavailable):
+    def __init__(self, message: str, status_code: int):
+        super().__init__(message)
+        self.status_code = status_code
+
+
 class ToolsWorker:
     def exchange(
         self, path: str, body: object = None, byte_range: str | None = None
@@ -34,7 +40,12 @@ class ToolsWorker:
         # Fixed loopback URL, no redirects and no environment proxy (token stays local).
         request = Request("http://127.0.0.1:8520" + path, data=data, headers=headers)
         try:
-            timeout = 600 if isinstance(body, dict) and body.get("action") == "reconstruction_export" else 60
+            timeout = (
+                600
+                if isinstance(body, dict)
+                and body.get("action") in {"reconstruction_export", "export_attach", "snapshot_request"}
+                else 60
+            )
             with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=timeout) as response:
                 # Project assumption, to be validated: a JSON/PNG response fits 32 MiB.
                 payload = response.read(32 * 1024 * 1024 + 1)
@@ -44,7 +55,17 @@ class ToolsWorker:
                     key: response.headers[key] for key in ("Content-Range", "Accept-Ranges") if key in response.headers
                 }
                 return payload, response.headers.get_content_type(), response.status, forwarded
-        except (HTTPError, URLError, OSError, ValueError) as error:
+        except HTTPError as error:
+            try:
+                failure = json.loads(error.read(4096))
+            except (ValueError, OSError):
+                failure = None
+            if error.code in {400, 409, 422} and isinstance(failure, dict) and failure.get("write_state") == "refused":
+                raise ToolsRefused(
+                    str(failure.get("error", "Local tool refused the action"))[:500], error.code
+                ) from error
+            raise ToolsUnavailable("Local tools are unavailable or refused the request.") from error
+        except (URLError, OSError, ValueError) as error:
             raise ToolsUnavailable("Local tools are unavailable or refused the request.") from error
 
     def json(self, path: str, body: object = None) -> dict[str, Any]:
@@ -53,6 +74,8 @@ class ToolsWorker:
             if not isinstance(value, dict):
                 raise ValueError("Expected object")
             return value
+        except ToolsUnavailable:
+            raise
         except (ValueError, TypeError) as error:
             raise ToolsUnavailable("Local tools returned an invalid response.") from error
 

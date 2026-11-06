@@ -16,6 +16,7 @@
 <label>Reviewer <input name="reviewer" required maxlength="120"></label><label>Reason <textarea name="reason" required maxlength="2000"></textarea></label>
 <p>The app records session attribution and reviewer/reason hashes. Producer files retain their original format.</p>
 <p id="replay-save-status" role="status">Enter attribution before saving. If completion is uncertain, inspect revisions before repeating an action.</p>
+<button type="button" id="retry-native-write" hidden>Retry pending action</button>
 <p><a id="snapshot-download" hidden>Download saved snapshot</a></p>
 <button name="action" value="reconstruction_export">Export replay from the selected saved revisions</button>
 <h2>Incident analysis</h2>
