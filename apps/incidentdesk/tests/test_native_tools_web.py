@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+import shutil
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -50,13 +51,16 @@ def test_track_page_uses_attached_selection_and_protects_write(
     )
     import psycopg
 
-    settings = ReconstructionSettings(True, FIXTURES)
+    exports_root = tmp_path / "exports"
+    exports_root.mkdir()
+    shutil.copytree(FIXTURES / "mig02-relative", exports_root / "mig02-relative")
+    settings = ReconstructionSettings(True, exports_root)
     with psycopg.connect(run_log.database_url) as connection:
         workspace = Workspace(connection, settings)
         workspace.attach(report.run_id, "mig02-relative", "Reviewer")
         link = workspace.current(report.run_id)[0]
     monkeypatch.setenv("INCIDENTDESK_RECONSTRUCTION", "true")
-    monkeypatch.setenv("INCIDENTDESK_EVIDENCE_EXPORTS_ROOT", str(FIXTURES))
+    monkeypatch.setenv("INCIDENTDESK_EVIDENCE_EXPORTS_ROOT", str(exports_root))
     monkeypatch.setenv("INCIDENTDESK_NATIVE_TOOLS", "true")
     from incident_report.reconstruction.native_client import ToolsWorker
 
@@ -68,6 +72,8 @@ def test_track_page_uses_attached_selection_and_protects_write(
         calls.append((path, body))
         if "/replay/" in path:
             if isinstance(body, dict):
+                if body.get("action") == "export_attach":
+                    return b'{"bundle":"native-00000000000000000000000000000001"}', "application/json", 200, {}
                 return b'{"revision":"revision-001","category":"scene"}', "application/json", 200, {}
             return (
                 (Path(__file__).parent / "fixtures/native_tracks/replay-response.json").read_bytes(),
@@ -247,5 +253,49 @@ def test_track_page_uses_attached_selection_and_protects_write(
     assert video.status_code == 206 and video.content == b"0123456789abcdef"
     assert video.headers["content-range"] == "bytes 0-15/100"
     assert str(calls[-1][1]) == "bytes=0-15"
+    reviewed_bundle = exports_root / "native-00000000000000000000000000000001"
+    shutil.copytree(exports_root / "mig02-relative", reviewed_bundle)
+    changed_envelope = {**envelope, "created_at": "2026-11-06T00:00:00Z"}
+    (reviewed_bundle / "bundle.json").write_text(json.dumps(changed_envelope), encoding="utf-8")
+    from incident_report.reconstruction.mapping import map_track, mapping_history, track_options
+
+    with psycopg.connect(run_log.database_url) as connection:
+        workspace = Workspace(connection, settings)
+        track = track_options(workspace, report.run_id, link)[0]
+        map_track(
+            workspace,
+            report.run_id,
+            link.import_id,
+            link.view_sha256,
+            track.track_ref,
+            "cannot_determine",
+            None,
+            "Reviewer",
+            "Identity unknown",
+        )
+    original_attach = Workspace.attach
+
+    def refuse_new_bundle(self: Workspace, incident_id: uuid.UUID, bundle: str, reviewer: str) -> object:
+        if bundle.startswith("native-"):
+            raise ValueError("Synthetic attachment failure")
+        return original_attach(self, incident_id, bundle, reviewer)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Workspace, "attach", refuse_new_bundle)
+        partial = client.post(replay_url, data={**scene_fields, "action": "export_attach"})
+        assert partial.status_code == 503
+        assert partial.json()["bundle"] == reviewed_bundle.name
+        assert "Export completed" in partial.json()["error"]
+    attached = client.post(replay_url, data={**scene_fields, "action": "export_attach"})
+    assert attached.status_code == 200
+    with psycopg.connect(run_log.database_url) as connection:
+        workspace = Workspace(connection, settings)
+        current = workspace.current(report.run_id)
+        assert len(current) == 1 and current[0].import_id != link.import_id
+        assert len(workspace.history(report.run_id)) == 2
+        assert mapping_history(workspace, report.run_id)[0].stale
+    new_url = url.replace(str(link.link_id), attached.json()["new_link_id"])
+    assert client.get(new_url).status_code == 200
     monkeypatch.setenv("INCIDENTDESK_NATIVE_TOOLS", "false")
     assert client.get(url).status_code == 404
+    assert client.get(new_url).status_code == 404

@@ -204,6 +204,7 @@ def install_native_tools(
                 "incident_review",
                 "incident_export",
                 "reconstruction_export",
+                "export_attach",
             }:
                 raise ValueError("Unknown action")
             body: dict[str, Any] = {
@@ -236,8 +237,43 @@ def install_native_tools(
                     if fields.get("modified_contributing_track_ids")
                     else ([] if fields.get("change_contributors") == "yes" else None),
                 }
+            elif action == "export_attach":
+                with psycopg.connect(local_database(log.database_url)) as connection:
+                    decision = Workspace(connection, settings).decision(link.import_id)
+                    if decision.envelope is None:
+                        raise ValueError("Re-import the evidence first")
+                    body["export_template"] = decision.envelope.model_dump(mode="json")
+                    body["source_view_id"] = link.source_view_id
             path = f"/cases/{quote(link.producer_case_id, safe='')}/replay/{quote(source.reconstruction_run, safe='')}"
             result = await audited_write(request, run_id, link_id, body, path, "replay")
+            if action == "export_attach":
+                bundle_name = str(result.get("bundle", ""))
+                if not re.fullmatch(r"native-[a-f0-9]{32}", bundle_name):
+                    raise ToolsUnavailable("Invalid exported bundle identifier")
+
+                def attach_export() -> str:
+                    from incident_report.reconstruction.paths import list_bundles
+
+                    if settings.evidence_exports_root is None or bundle_name not in list_bundles(
+                        settings.evidence_exports_root
+                    ):
+                        raise ValueError("Export bundle is unavailable")
+                    with psycopg.connect(local_database(log.database_url)) as connection:
+                        attachments = Workspace(connection, settings).attach(run_id, bundle_name, body["reviewer"])
+                        return str(attachments[0].link_id)
+
+                try:
+                    new_link_id = await run_in_threadpool(attach_export)
+                except (ValueError, OSError, psycopg.Error):
+                    return JSONResponse(
+                        {
+                            "error": "Export completed; attachment was not confirmed. Check import history and select this exported bundle in the incident workspace before repeating.",
+                            "bundle": bundle_name,
+                            "review_url": f"/reports/{run_id}/review",
+                        },
+                        status_code=503,
+                    )
+                result.update(new_link_id=new_link_id, review_url=f"/reports/{run_id}/review")
             return JSONResponse(result)
         except ToolsUnavailable:
             return error_page(

@@ -38,9 +38,10 @@
 <label>Corrected contributing track IDs, comma-separated (assessment modify only) <input name="modified_contributing_track_ids"></label>
 <label><input type="checkbox" name="change_contributors" value="yes">Replace contributor list; an empty list means no contributors</label>
 {% if values.review_revision != data.review_revisions[-1] %}<p>Select the latest review revision to record a decision. Historical revisions remain viewable and exportable.</p>{% endif %}
-<button name="action" value="incident_review" {% if values.review_revision != data.review_revisions[-1] %}disabled{% endif %}>Save review decision</button><button name="action" value="incident_export">Export reviewed view</button>
+<button name="action" value="incident_review" {% if values.review_revision != data.review_revisions[-1] %}disabled{% endif %}>Save review decision</button><button name="action" value="incident_export">Export reviewed view</button><button name="action" value="export_attach">Export reviewed view and attach</button>
 {% else %}<p>No associated incident run is available.</p>{% endif %}
 </form>
+<p><a id="reattach-review" hidden>Open incident and re-confirm mappings</a></p>
 <h2>Movement and uncertainty</h2>
 {% if data.movement is defined %}
 <p>Source frame {{ data.movement.source_frame }} · {{ data.movement.manifest.unit }} · {{ data.movement.manifest.limitations | join(' ') }}</p>

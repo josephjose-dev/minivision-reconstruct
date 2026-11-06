@@ -71,7 +71,7 @@ def manifest_paths(run):
     return value
 
 
-def routes(root, select_case):
+def routes(root, select_case, exports_root=None):
     lock = Lock()
     completed = OrderedDict()
 
@@ -229,7 +229,7 @@ def routes(root, select_case):
                     media.bundle,
                 )
                 result = {"revision": saved.name, "category": "marker"}
-            elif action in {"incident_review", "incident_export"}:
+            elif action in {"incident_review", "incident_export", "export_attach"}:
                 incident, movement = incident_run(case, run, body)
                 revision = body["review_revision"]
                 if action == "incident_review":
@@ -251,6 +251,16 @@ def routes(root, select_case):
                         ),
                         body["reviewer"],
                     )
+                elif action == "export_attach":
+                    from integration.tools_worker.bundle_export import export_bundle
+
+                    result = export_bundle(
+                        exports_root, case, run, incident, evidence, body
+                    )
+                    completed[key] = (digest, result)
+                    while len(completed) > 256:
+                        completed.popitem(last=False)
+                    return JSONResponse(result)
                 else:
                     saved = review.export_reviewed_view(incident, revision)
                 result = {"revision": saved.name, "category": "review"}

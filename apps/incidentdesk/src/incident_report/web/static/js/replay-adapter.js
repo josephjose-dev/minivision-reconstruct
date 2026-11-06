@@ -37,8 +37,25 @@ async function save(action, value = {}) {
     if (value.document) fields.set("document", JSON.stringify(value.document));
     fields.set("source_frame", String(value.source_frame ?? host.querySelector(".replay-root").dataset.sourceFrame ?? 0));
     const response = await fetch(base, {method: "POST", body: fields, credentials: "same-origin"});
-    if (!response.ok) throw new Error("Save was not confirmed. Check the selected inputs and inspect saved revisions before retrying.");
+    if (!response.ok) {
+      let failure = null;
+      try { failure = await response.json(); } catch {}
+      if (failure && /^native-[a-f0-9]{32}$/.test(failure.bundle || "")) {
+        const link = document.getElementById("reattach-review");
+        link.href = failure.review_url; link.textContent = "Open incident and attach the completed export"; link.hidden = false;
+        throw new Error(`${failure.error} Bundle: ${failure.bundle}`);
+      }
+      throw new Error(typeof failure?.detail === "string" ? failure.detail : "Save was not confirmed. Check the selected inputs and inspect saved revisions before retrying.");
+    }
     const result = await response.json();
+    if (result.new_link_id) {
+      const link = document.getElementById("reattach-review");
+      link.href = result.review_url; link.hidden = false;
+      host.inert = true; form.inert = true; selection.inert = true;
+      status.textContent = "Reviewed export attached. This selection is superseded; open the incident to re-confirm mappings and continue.";
+      link.focus();
+      return;
+    }
     if (result.category === "scene") { setRevision("scene_revision", result.revision); open(null, true); }
     if (result.category === "marker") { setRevision("marker_revision", result.revision); open(null, true); }
     if (result.category === "review") setRevision("review_revision", result.revision);

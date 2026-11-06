@@ -87,7 +87,9 @@ class LocalAccess:
         await response(scope, receive, send)
 
 
-def create_app(cases_root: Path, token: str) -> Starlette:
+def create_app(
+    cases_root: Path, token: str, exports_root: Path | None = None
+) -> Starlette:
     """Create an authenticated worker; never discover tokens or cases implicitly."""
     if (
         not token
@@ -102,6 +104,17 @@ def create_app(cases_root: Path, token: str) -> Starlette:
     ):
         raise ValueError("Configure an existing absolute cases directory without links")
     root = cases_root.resolve(strict=True)
+    if exports_root is not None and (
+        not exports_root.is_absolute()
+        or not exports_root.is_dir()
+        or any(path.is_symlink() for path in (exports_root, *exports_root.parents))
+    ):
+        raise ValueError("Configure an existing local exports directory without links")
+    if exports_root is not None and (
+        exports_root.resolve().is_relative_to(root)
+        or root.is_relative_to(exports_root.resolve())
+    ):
+        raise ValueError("Cases and exports directories must be separate")
 
     async def health(request):
         return JSONResponse({"status": "ok"})
@@ -128,7 +141,7 @@ def create_app(cases_root: Path, token: str) -> Starlette:
             Route("/cases/{case_id}/runs/{run_id}", selected_run),
             *track_routes(root, select_case),
             *calibration_routes(root, select_case),
-            *replay_routes(root, select_case),
+            *replay_routes(root, select_case, exports_root),
         ],
         middleware=[Middleware(LocalAccess, token=token)],
     )
