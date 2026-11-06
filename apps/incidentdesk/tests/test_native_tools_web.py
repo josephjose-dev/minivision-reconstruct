@@ -64,6 +64,8 @@ def test_track_page_uses_attached_selection_and_protects_write(
     monkeypatch.setenv("INCIDENTDESK_NATIVE_TOOLS", "true")
     from incident_report.reconstruction.native_client import ToolsWorker
 
+    real_exchange = ToolsWorker.exchange
+
     calls: list[tuple[str, object]] = []
 
     def exchange(
@@ -165,6 +167,12 @@ def test_track_page_uses_attached_selection_and_protects_write(
         "reason_sha256": hashlib.sha256(b"Correct class").hexdigest(),
     }
     box_fields = {**fields, "class_name": "", "bbox": "10,10,20,20"}
+    count = len(calls)
+    for bbox in ("nan,10,20,20", "10,inf,20,20", "10,10,-inf,20"):
+        nonfinite = client.post(url, data={**box_fields, "bbox": bbox})
+        assert nonfinite.status_code == 400
+        assert "finite" in nonfinite.json()["error"].lower()
+    assert len(calls) == count
     assert client.post(url, data=box_fields, follow_redirects=False).status_code == 303
     assert calls[-1][1]["payload"] == {"track_id": 1, "frame_number": 0, "bbox": [10.0, 10.0, 20.0, 20.0]}
     create_fields = {**box_fields, "action": "create_track", "new_track_id": "8", "class_name": "car"}
@@ -186,6 +194,18 @@ def test_track_page_uses_attached_selection_and_protects_write(
         assert "do not repeat" in failed_confirmation.text
         assert len(calls) == count + 1
     assert client.get(url.replace(str(link.link_id), str(uuid.uuid4()))).status_code == 404
+    original_decision = Workspace.decision
+
+    def missing_source(self: Workspace, import_id: str) -> Any:
+        decision = original_decision(self, import_id)
+        assert decision.envelope is not None
+        return decision.model_copy(update={"envelope": decision.envelope.model_copy(update={"sources": ()})})
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Workspace, "decision", missing_source)
+        count = len(calls)
+        assert client.get(url).status_code == 404
+        assert len(calls) == count
     calibration_url = url.removesuffix("tracks") + "calibration"
     calibration_page = client.get(calibration_url, params={"frame": 68})
     assert calibration_page.status_code == 200
@@ -234,6 +254,35 @@ def test_track_page_uses_attached_selection_and_protects_write(
         "scene_revision": "initial",
         "marker_revision": "initial",
     }
+    from urllib.error import URLError
+
+    from incident_report.reconstruction import native_client
+
+    class OfflineOpener:
+        def __init__(self, failure: Exception) -> None:
+            self.failure = failure
+
+        def open(self, *args: Any, **kwargs: Any) -> Any:
+            raise self.failure
+
+    for outage in (URLError("private transport details"), TimeoutError("private timeout details")):
+        with monkeypatch.context() as patch:
+            patch.setenv("INCIDENTDESK_TOOLS_TOKEN", "synthetic-private-token")
+            patch.setattr(ToolsWorker, "exchange", real_exchange)
+            patch.setattr(native_client, "build_opener", lambda *args, failure=outage: OfflineOpener(failure))
+            count = len(calls)
+            for tool_url, submitted_fields in (
+                (url, fields),
+                (calibration_url, {**calibration_fields, "action": "save"}),
+                (replay_url, scene_fields),
+            ):
+                unavailable = client.get(tool_url)
+                assert unavailable.status_code == 503
+                failed_save = client.post(tool_url, data=submitted_fields)
+                assert failed_save.status_code == 503
+                assert "did not confirm" in failed_save.text
+                assert "private" not in unavailable.text + failed_save.text
+            assert len(calls) == count
     count = len(calls)
     assert client.post(replay_url, data={**scene_fields, "csrf_token": "bad"}).status_code == 403
     assert len(calls) == count
@@ -329,3 +378,16 @@ def test_track_page_uses_attached_selection_and_protects_write(
     assert "/reconstruct/tracks/" in legacy_page.text
     assert new_url not in legacy_page.text
     assert client.get(incident_url + "/print").content == native_print
+
+
+def test_invalid_native_flag_ignored_when_reconstruction_disabled(
+    run_log: RunLog, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INCIDENTDESK_RECONSTRUCTION", "false")
+    monkeypatch.setenv("INCIDENTDESK_NATIVE_TOOLS", "invalid")
+    app = create_app(ai=ReplayAIConnection(), run_log=run_log)
+    client = authorized_client(app, run_log.database_url)
+    assert client.get(f"/reports/{uuid.uuid4()}/tools/{uuid.uuid4()}/tracks").status_code == 404
+    monkeypatch.setenv("INCIDENTDESK_RECONSTRUCTION", "true")
+    with pytest.raises(ValueError, match="INCIDENTDESK_NATIVE_TOOLS"):
+        create_app(ai=ReplayAIConnection(), run_log=run_log)

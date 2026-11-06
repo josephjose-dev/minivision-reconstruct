@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 import re
 import secrets
 import uuid
@@ -28,6 +29,10 @@ from incident_report.web.review import accessible_report
 from incident_report.web.templating import build_environment
 
 
+class InvalidBoundingBox(ValueError):
+    """A box contains a non-finite coordinate."""
+
+
 def track_action(fields: dict[str, str]) -> dict[str, Any]:
     action = fields.get("action", "")
     parameters = {
@@ -52,6 +57,8 @@ def track_action(fields: dict[str, str]) -> dict[str, Any]:
             payload["class_name"] = fields.get("class_name", "")
         if fields.get("bbox", "").strip():
             payload["bbox"] = [float(value) for value in fields["bbox"].split(",")]
+            if not all(math.isfinite(value) for value in payload["bbox"]):
+                raise InvalidBoundingBox("Bounding box coordinates must be finite numbers.")
     return {
         "action_id": str(uuid.UUID(fields["action_id"])),
         **(
@@ -72,7 +79,8 @@ def track_action(fields: dict[str, str]) -> dict[str, Any]:
 def install_native_tools(
     app: FastAPI, log: RunLog, error_page: Callable[[Request, int, str], Response], settings: ReconstructionSettings
 ) -> None:
-    native_enabled()  # Invalid flag fails startup, even when reconstruction is off.
+    if settings.enabled:
+        native_enabled()
     templates = Jinja2Templates(env=build_environment())
 
     def audit_action(
@@ -99,7 +107,7 @@ def install_native_tools(
     def selection(
         request: Request, run_id: uuid.UUID, link_id: uuid.UUID, completed_only: bool = False
     ) -> tuple[Any, Any]:
-        if not native_enabled() or not settings.enabled:
+        if not settings.enabled or not native_enabled():
             raise HTTPException(404, "Native tools are disabled.")
         if getattr(request.state, "attribution", None) is None:
             raise HTTPException(403, "Open a valid share link to use the tool.")
@@ -118,7 +126,9 @@ def install_native_tools(
             decision = workspace.decision(link.import_id)
             if decision.envelope is None:
                 raise HTTPException(404, "Re-import this evidence before opening tools.")
-            source = next(item for item in decision.envelope.sources if item.view_id == link.source_view_id)
+            source = next((item for item in decision.envelope.sources if item.view_id == link.source_view_id), None)
+            if source is None:
+                raise HTTPException(404, "Attached source is unavailable; re-import this evidence.")
         return link, source
 
     async def submitted(
@@ -472,6 +482,8 @@ def install_native_tools(
                 )
         except BodyTooLargeError:
             return error_page(request, 413, "Request body exceeds maximum size limit.")
+        except InvalidBoundingBox as error:
+            return JSONResponse({"error": str(error), "write_state": "refused"}, status_code=400)
         except ToolsRefused as error:
             return JSONResponse({"error": str(error), "write_state": "refused"}, status_code=error.status_code)
         except ToolsUnavailable:
