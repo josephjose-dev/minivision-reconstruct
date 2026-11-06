@@ -160,7 +160,7 @@ def build(
     if len(manifest_bytes) > MAX_MANIFEST_BYTES:
         raise PackageRefused("Package manifest is too large to verify portably.")
     files["manifest.json"] = manifest_bytes
-    result = assemble(files)
+    result = assemble(files, evidence_root=_evidence_root(evidence))
     try:
         verify(result)
     except VerificationRefused:

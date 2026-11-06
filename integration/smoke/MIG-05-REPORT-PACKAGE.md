@@ -47,3 +47,13 @@ Extra manual checks after the R2 fixes:
 9. Timestamps in `manifest.json`, `decisions.json` and the printed approval line end in `+00:00` (UTC).
 10. `python -m incident_report.package verify` refuses a copy with a ZIP comment, extra bytes before or
     after the archive, a compressed member, or more than the member/size bounds (engineering bounds, not standards).
+
+## Round 3 note (mig-05-r2)
+11. Keep the allowed Arabic/slash examples in step 8, plus `12:30` and `ratio 3:1`.
+    Reasons containing `path:C:\Users\x`, `Note:C:/Users/x`, `{C:/Users/x}` or
+    `path:/home/x/a` must be refused with the payload filename. Also check `/root/`,
+    `/srv/`, `/Volumes/`, `/private/`, `/var/` and `~/` paths, including mixed-case roots.
+12. Automated regressions isolate evidence-root wiring with a synthetic configured root
+    outside every generic known-root rule; the real evidence stays in its fixture store.
+    They also refuse CSS backslashes in style blocks/embedded stylesheets, retain the
+    style-attribute refusal, and validate actual print HTML plus a complete built package.

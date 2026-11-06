@@ -18,14 +18,15 @@ class UnsafePayload(ValueError):
 
 
 # A real machine path: a drive letter + separator, a UNC share or a known absolute root.
-# They must start a string or follow whitespace/opening punctuation, so ordinary officer
-# prose ("Note:<Arabic>", "checked /ref", "lane (/left)", "60 km/h", "and/or") stays valid.
+# Drives and known roots can follow prose punctuation. Ordinary officer text such as
+# "Note:<Arabic>", "checked /ref", "lane (/left)", "60 km/h" and "and/or" stays valid.
 _MACHINE_PATH = re.compile(
-    r"(?:^|[\s\"'(\[<=,;])[A-Za-z]:[\\/]"
+    r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]"
     r"|(?:^|[\s\"'(\[<=,;])\\\\[^\s\\]"
-    r"|(?<![\w/<.:-])/(?:Users|home|tmp|mnt|var|etc|opt)/"
+    r"|(?<![\w/<-])(?:/(?:Users|home|root|tmp|mnt|srv|Volumes|private|var|etc|opt)/|~/)"
     r"|(?<![\w:/])//"
-    r"|file://|\blocalhost\b|127\.0\.0\.1"
+    r"|file://|\blocalhost\b|127\.0\.0\.1",
+    re.I,
 )
 
 
@@ -96,6 +97,10 @@ def _json_text(path: str, text: str, evidence_root: str | None) -> None:
 
 def _css(css: str) -> None:
     """Allow only embedded woff2 fonts; every other CSS resource reference could fetch from the network."""
+    # Our fixed report styles do not need CSS escapes. Refuse them rather than
+    # letting escaped identifiers conceal url()/@import from the resource scan.
+    if "\\" in css:
+        raise UnsafePayload("CSS escapes are not permitted in offline stylesheets.")
     lowered = css.lower()
     if (
         "@import" in lowered

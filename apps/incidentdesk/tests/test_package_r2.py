@@ -21,6 +21,8 @@ ALLOWED_TEXT = [
     "Speed limit 60 km/h",
     "Lawful source https://example.com/law/14?article=3",
     "Part 1/2 and/or part 2",
+    "12:30",
+    "ratio 3:1",
 ]
 REFUSED_TEXT = [
     "C:\\Users\\x",
@@ -30,6 +32,20 @@ REFUSED_TEXT = [
     "clip at \\\\server\\share\\clip.mp4",
     "file:///tmp/private",
     "http://localhost:8000/private",
+    "path:C:" + chr(92) + "Users" + chr(92) + "x",
+    "Note:C:/Users/x",
+    "{C:/Users/x}",
+    "path:/home/x/a",
+    "path./home/x/a",
+    "/root/evidence",
+    "/srv/evidence",
+    "/Volumes/evidence",
+    "/private/evidence",
+    "/var/evidence",
+    "~/evidence",
+    "Note:/VoLuMeS/evidence",
+    "Note:/PrIvAtE/evidence",
+    "Note:~/evidence",
 ]
 JSON_PATHS = ["decisions.json", "manifest.json", "reconstruction/import/bundle.json"]
 
@@ -63,13 +79,13 @@ def test_real_machine_references_are_refused_and_the_message_names_the_payload(p
 def test_the_configured_evidence_root_is_refused_wherever_it_appears() -> None:
     from incident_report.web.package_safety import UnsafePayload, validate_payload
 
-    root = "/srv/evidence-store"
-    content = canonical_json({"reason": "stored at /srv/evidence-store/objects/ab"}).encode()
+    root = "/incidentdesk-ev-test"
+    content = canonical_json({"reason": f"stored at {root}/objects/ab"}).encode()
     validate_payload("decisions.json", content)  # not a known machine root without configuration
     with pytest.raises(UnsafePayload, match="decisions.json"):
         validate_payload("decisions.json", content, evidence_root=root)
     with pytest.raises(UnsafePayload, match="report.html"):
-        validate_payload("report.html", b"<p>/srv/evidence-store/objects</p>", evidence_root=root)
+        validate_payload("report.html", f"<p>{root}/objects</p>".encode(), evidence_root=root)
 
 
 def test_approved_version_with_arabic_and_slash_officer_text_still_downloads(
@@ -101,18 +117,24 @@ def test_approved_version_with_arabic_and_slash_officer_text_still_downloads(
 
 
 def test_build_refuses_text_that_reveals_the_configured_evidence_root(
-    workspace: tuple[TestClient, Report], run_log: RunLog
+    workspace: tuple[TestClient, Report], run_log: RunLog, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from typing import cast
 
     from fastapi import FastAPI
 
     from incident_report.package import PackageRefused, build
+    from incident_report.web.package_safety import validate_payload
     from test_review_workspace_r2 import store_report
 
     client, report = workspace
     evidence = cast(FastAPI, client.app).state.evidence
+    # This root intentionally stays outside the generic machine-root list, including
+    # the R3 additions. Actual original evidence remains in the fixture's real store.
+    root = Path("/incidentdesk-ev-test")
+    monkeypatch.setattr(type(evidence), "root", property(lambda _store: root))
     leaked = evidence.root.as_posix() + "/objects/ab"
+    validate_payload("report.html", f"<p>Synthetic stored at {leaked}</p>".encode())
     report = store_report(run_log, report.model_copy(update={"summary": "Synthetic stored at " + leaked}))
     approve(client, report)
     with pytest.raises(PackageRefused, match="report.html"):
