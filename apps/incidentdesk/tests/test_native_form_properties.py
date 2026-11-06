@@ -15,9 +15,29 @@ JS_FILES = sorted((WEB / "static" / "js").glob("*.js"))
 NATIVE_TEMPLATES = sorted((WEB / "templates").glob("native_*.html"))
 # Form properties a control name or id would shadow; JS may only read these if no control collides.
 FORM_PROPERTIES = {
-    "action", "method", "target", "enctype", "encoding", "id", "name", "elements", "dataset", "length",
-    "submit", "reset", "reportValidity", "checkValidity", "requestSubmit", "addEventListener", "getAttribute",
-    "inert", "hidden", "className", "style", "children", "parentElement",
+    "action",
+    "method",
+    "target",
+    "enctype",
+    "encoding",
+    "id",
+    "name",
+    "elements",
+    "dataset",
+    "length",
+    "submit",
+    "reset",
+    "reportValidity",
+    "checkValidity",
+    "requestSubmit",
+    "addEventListener",
+    "getAttribute",
+    "inert",
+    "hidden",
+    "className",
+    "style",
+    "children",
+    "parentElement",
 }
 # Properties that carry a URL or request setting: never read as a property, always via getAttribute/data-*.
 REQUEST_PROPERTIES = ("action", "method", "target", "enctype", "encoding")
