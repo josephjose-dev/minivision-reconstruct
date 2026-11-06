@@ -9,13 +9,14 @@ import sys
 import uuid
 import zipfile
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 import psycopg
 
 from incident_report.audit import canonical_json
-from incident_report.decisions import ReportState
+from incident_report.decisions import OverrideRecord, ReportState
 from incident_report.domain import Attribution, Report, RunStatus
 from incident_report.package_format import MAX_MANIFEST_BYTES, PackageRefused, VerificationRefused
 from incident_report.reconstruction.config import ReconstructionSettings
@@ -47,6 +48,17 @@ def _original_views(report: Report, evidence: EvidenceStore | None) -> dict[str,
     return files
 
 
+def _utc_iso(value: datetime) -> str:
+    """Pin an export timestamp to UTC so the bytes never depend on the database session TimeZone."""
+    return value.astimezone(UTC).isoformat()
+
+
+def _override_data(record: OverrideRecord) -> dict[str, Any]:
+    data: dict[str, Any] = record.model_dump(mode="json")
+    data["created_at"] = _utc_iso(record.created_at)
+    return data
+
+
 def _decision_data(log: RunLog, state: ReportState) -> tuple[dict[str, Any], str, dict[str, Any] | None]:
     with psycopg.connect(log.database_url) as conn:
         approval = conn.execute(
@@ -66,19 +78,19 @@ def _decision_data(log: RunLog, state: ReportState) -> tuple[dict[str, Any], str
     data = {
         "run_id": str(state.run_id),
         "version_number": state.version_number,
-        "overrides": {key: record.model_dump(mode="json") for key, record in state.overrides.items()},
+        "overrides": {key: _override_data(record) for key, record in state.overrides.items()},
         "approval": dict(
             zip(
                 ("approved_at", "overrides_digest", "session_id", "link_id", "request_id"),
                 (
-                    value.isoformat() if hasattr(value, "isoformat") else str(value) if value is not None else None
+                    _utc_iso(value) if isinstance(value, datetime) else str(value) if value is not None else None
                     for value in approval
                 ),
                 strict=True,
             )
         ),
         "lineage": [
-            {"version_number": number, "parent_version": parent, "created_at": created.isoformat()}
+            {"version_number": number, "parent_version": parent, "created_at": _utc_iso(created)}
             for number, parent, created in lineage
         ],
     }
@@ -130,7 +142,7 @@ def build(
         "format_version": 1,
         "run_id": str(run_id),
         "version_number": version,
-        "approved_at": state.approved_at.isoformat(),
+        "approved_at": _utc_iso(state.approved_at),
         "input_hash": run.report.input_hash,
         "prompt_version": run.report.prompt_version,
         "app_commit": "unknown",

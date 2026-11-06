@@ -4,7 +4,7 @@
     by autoescape; it is never sent to the AI. The reasons are plain UI reasons, not RTA categories. -#}
 {% macro version_banner(decision) %}
 <div class="alert" data-decision-banner role="status">
-  <p><strong>Version {{ decision.version_number }} · {% if decision.is_approved %}<span class="badge badge--verified">Approved</span> <time datetime="{{ decision.approved_at.isoformat() }}">{{ decision.approved_at.isoformat() }}</time>{% else %}Draft, not approved{% endif %}</strong>{% if decision.is_approved %}. This version is read-only.{% endif %}{% if not print_view and decision.version_number != decision.latest_version %} (an earlier version, shown unchanged){% endif %}</p>
+  <p><strong>Version {{ decision.version_number }} · {% if decision.is_approved %}<span class="badge badge--verified">Approved</span> <time datetime="{{ (decision.approved_at|utc).isoformat() }}">{{ (decision.approved_at|utc).isoformat() }}</time>{% else %}Draft, not approved{% endif %}</strong>{% if decision.is_approved %}. This version is read-only.{% endif %}{% if not print_view and decision.version_number != decision.latest_version %} (an earlier version, shown unchanged){% endif %}</p>
   {% if decision.versions|length > 1 and not print_view %}
   <p class="meta">Versions:
     {% for v in decision.versions %}{% if v.version_number == decision.version_number %}<strong>Version {{ v.version_number }}</strong>{% else %}<a href="?version={{ v.version_number }}">Version {{ v.version_number }}</a>{% endif %}{% if v.is_approved %} (approved){% endif %}{% if not loop.last %} · {% endif %}{% endfor %}
@@ -31,7 +31,7 @@
         {% if ov %}
         <p><strong>Officer override</strong>: {{ ov.new_value | fault_status_label if finding.kind == 'party' else ov.new_value }}</p>
         <p>Reason: {{ ov.reason_label }}<br><bdi dir="auto">{{ ov.reason_text }}</bdi></p>
-        <p class="meta">Made in version {{ ov.version_number }}, {{ ov.created_at.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+        <p class="meta">Made in version {{ ov.version_number }}, {{ (ov.created_at|utc).strftime('%Y-%m-%d %H:%M UTC') }}</p>
         {% else %}
         <span class="meta">No override</span>
         {% endif %}

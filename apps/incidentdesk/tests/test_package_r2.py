@@ -115,3 +115,59 @@ def test_build_refuses_text_that_reveals_the_configured_evidence_root(
     approve(client, report)
     with pytest.raises(PackageRefused, match="report.html"):
         build(report.run_id, 1, log=run_log, evidence=evidence)
+
+
+def _approved_v2(client: TestClient, report: Report) -> str:
+    approve(client, report)
+    url = f"/reports/{report.run_id}"
+    fields = {"csrf_token": csrf_token(client, report)}
+    assert client.post(url + "/versions", data=fields, follow_redirects=False).status_code == 303
+    assert (
+        client.post(
+            url + "/overrides",
+            data={
+                **fields,
+                "finding_key": "party:0",
+                "new_value": "Not at Fault",
+                "reason_code": "other",
+                "reason_text": "Synthetic timezone check",
+            },
+            follow_redirects=False,
+        ).status_code
+        == 303
+    )
+    approve(client, report)
+    return url
+
+
+def test_package_bytes_and_timestamps_do_not_depend_on_the_database_session_timezone(
+    workspace: tuple[TestClient, Report], run_log: RunLog, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+    from typing import cast
+
+    from fastapi import FastAPI
+
+    from incident_report.package import build
+
+    client, report = workspace
+    _approved_v2(client, report)
+    evidence = cast(FastAPI, client.app).state.evidence
+    packages = {}
+    for zone in ("UTC", "Asia/Dubai", "America/Los_Angeles"):
+        monkeypatch.setenv("PGTZ", zone)
+        packages[zone] = build(report.run_id, 2, log=run_log, evidence=evidence)
+    assert packages["UTC"] == packages["Asia/Dubai"] == packages["America/Los_Angeles"]
+    with zipfile.ZipFile(io.BytesIO(packages["Asia/Dubai"])) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+        decisions = json.loads(archive.read("decisions.json"))
+        html = archive.read("report.html").decode()
+    stamps = [
+        manifest["approved_at"],
+        decisions["approval"]["approved_at"],
+        *(item["created_at"] for item in decisions["lineage"]),
+        *(item["created_at"] for item in decisions["overrides"].values()),
+    ]
+    assert len(stamps) >= 4
+    assert all(stamp.endswith("+00:00") for stamp in stamps), stamps
+    assert manifest["approved_at"] in html
