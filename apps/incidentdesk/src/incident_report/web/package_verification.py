@@ -11,14 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from incident_report.package_safety import member_path
-
-# Project engineering bound for metadata only; original videos are streamed.
-MAX_MANIFEST_BYTES = 1024 * 1024
-
-
-class VerificationRefused(ValueError):
-    pass
+from incident_report.package_format import MAX_MANIFEST_BYTES, VerificationRefused
+from incident_report.web.package_safety import member_path
 
 
 def _object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:

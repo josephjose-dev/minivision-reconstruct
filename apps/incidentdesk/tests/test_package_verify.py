@@ -129,7 +129,7 @@ def test_builder_refuses_oversize_manifest_before_build_audit(
     workspace: tuple[TestClient, Report], run_log: RunLog
 ) -> None:
     from incident_report.package import PackageRefused, build
-    from incident_report.package_verification import MAX_MANIFEST_BYTES
+    from incident_report.package_format import MAX_MANIFEST_BYTES
     from test_review_workspace_r2 import store_report
 
     client, report = workspace

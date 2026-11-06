@@ -1,7 +1,7 @@
 # MIG-05 report version and package smoke
 
-Status: prepared for Claude; NOT RUN by Codex. Part A implemented only. Package steps
-remain pending the card's hash-cycle/determinism and legal-link clarification.
+Status: Parts A–E implemented; automated evidence lives in the donor MIG-05 result.
+Browser/PDF smoke prepared for Claude, NOT RUN by Codex.
 Use a clearly labelled synthetic report with cited parties, fines and officer decisions.
 Do not use real/NDA footage or make a model call for this check.
 
@@ -17,15 +17,24 @@ Do not use real/NDA footage or make a model call for this check.
 4. Start version 2, add a different override, inspect its draft print page ('Draft, not
    approved'), approve it. Reopen version 1 screen and print: original decisions and
    approval timestamp unchanged. Its print link must still select version 1.
-5. Pending Parts B/D: download approved version 1 and version 2 packages through the same
+5. Download approved version 1 and version 2 packages through the same
    share session; a draft and missing/mismatched evidence must be refused before streaming.
-   Repeat a build and compare ZIP bytes. Confirm one build audit entry per successful build.
-6. Pending Parts B/C/E: copy a ZIP into a clean folder and run
+   Repeat a build with the same export options and compare ZIP bytes. Confirm one build
+   audit entry per successful build, attributed to the actual downloading session.
+6. Copy a ZIP into a clean folder and run
    `python -m incident_report.package verify <zip>` in the app environment. Open extracted
    report offline; verify originals and manifest hashes/sizes. Confirm no machine-local
    paths, secrets or active network resources. Check reconstruction only in its labelled
    proposal appendix when enabled; repeat with flag off and an interior view.
-7. Pending verifier: tamper a byte, add/remove a payload file, and introduce a traversal
+7. Change one byte without changing file length, add/remove a payload file, and introduce a traversal
    member in separate copies; each must fail with a readable reason.
 
 Record browser/PDF results and any package-contract exception in the independent review.
+
+Owner-approved format clarifications: manifest inventories every payload except itself;
+it records the immutable approval audit hash, while a separate fresh build audit event
+records the manifest hash. Inert legal citation hyperlinks remain; active external
+resources and machine-local paths/hosts are refused. CSS/fonts are embedded. Current
+reconstruction/driver export selections are explicit in export_options; source review
+records are anchored to the approval snapshot (legacy approvals use a timestamp cutoff).
+App commit is unknown when the original report did not capture that provenance.
