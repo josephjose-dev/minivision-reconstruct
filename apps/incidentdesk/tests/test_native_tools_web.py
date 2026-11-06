@@ -65,6 +65,15 @@ def test_track_page_uses_attached_selection_and_protects_write(
         self: object, path: str, body: object = None, byte_range: str | None = None
     ) -> tuple[bytes, str, int, dict[str, str]]:
         calls.append((path, body))
+        if "/calibration/" in path:
+            if isinstance(body, dict) and body.get("action") == "save":
+                return b'{"revision":"revision-003"}', "application/json", 200, {}
+            return (
+                (Path(__file__).parent / "fixtures/native_tracks/calibration-response.json").read_bytes(),
+                "application/json",
+                200,
+                {},
+            )
         if response_kind == "captured":
             return (
                 (Path(__file__).parent / "fixtures/native_tracks/response.json").read_bytes(),
@@ -153,5 +162,36 @@ def test_track_page_uses_attached_selection_and_protects_write(
         assert "do not repeat" in failed_confirmation.text
         assert len(calls) == count + 1
     assert client.get(url.replace(str(link.link_id), str(uuid.uuid4()))).status_code == 404
+    calibration_url = url.removesuffix("tracks") + "calibration"
+    calibration_page = client.get(calibration_url, params={"frame": 68})
+    assert calibration_page.status_code == 200
+    assert "Control points" in calibration_page.text
+    assert "calibration-points.js" in calibration_page.text
+    assert (
+        calls[-1][0] == f"/cases/mig02-relative/calibration/{envelope['sources'][0]['calibration_revision']}?frame=68"
+    )
+    calibration_fields = {
+        "csrf_token": token[1],
+        "reviewer": "Reviewer",
+        "reason": "Check points",
+        "action": "preview",
+        "frame": "68",
+        "mode": "non_metric",
+        "world_unit": "relative_units",
+        "validation_tolerance": "0.01",
+        "control_text": "0,0,0,0",
+        "validation_text": "1,1,1,1",
+        "features": "[]",
+    }
+    count = len(calls)
+    assert client.post(calibration_url, data={**calibration_fields, "csrf_token": "bad"}).status_code == 403
+    assert len(calls) == count
+    assert client.post(calibration_url, data=calibration_fields).status_code == 200
+    assert calls[-1][1]["features"] == []
+    saved = client.post(calibration_url, data={**calibration_fields, "action": "save"}, follow_redirects=False)
+    assert saved.status_code == 303
+    assert "revision=revision-003" in saved.headers["location"] and "frame=68" in saved.headers["location"]
+    assert client.get(saved.headers["location"]).status_code == 200
+    assert calls[-1][0] == "/cases/mig02-relative/calibration/revision-003?frame=68"
     monkeypatch.setenv("INCIDENTDESK_NATIVE_TOOLS", "false")
     assert client.get(url).status_code == 404

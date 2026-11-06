@@ -1,6 +1,7 @@
 """Native producer tools: existing report access, immutable attached IDs, CSRF writes."""
 
 import hashlib
+import json
 import os
 import secrets
 import uuid
@@ -71,11 +72,13 @@ def install_native_tools(
     native_enabled()  # Invalid flag fails startup, even when reconstruction is off.
     templates = Jinja2Templates(env=build_environment())
 
-    def audit_action(request: Request, run_id: uuid.UUID, link_id: uuid.UUID, body: dict[str, Any], stage: str) -> None:
+    def audit_action(
+        request: Request, run_id: uuid.UUID, link_id: uuid.UUID, body: dict[str, Any], stage: str, tool: str = "tracks"
+    ) -> None:
         attribution = request.state.attribution
         log.audit.append(
             event_type="reconstruction",
-            action=f"native.tracks.{stage}",
+            action=f"native.{tool}.{stage}",
             actor="visitor",
             session_id=attribution.session_id,
             link_id=attribution.link_id,
@@ -111,6 +114,109 @@ def install_native_tools(
                 raise HTTPException(404, "Re-import this evidence before opening tools.")
             source = next(item for item in decision.envelope.sources if item.view_id == link.source_view_id)
         return link, source
+
+    async def submitted(request: Request, run_id: uuid.UUID, link_id: uuid.UUID) -> tuple[Any, Any, dict[str, str]]:
+        link, source = await run_in_threadpool(selection, request, run_id, link_id)
+        if not _check_origin(request):
+            raise HTTPException(403, "Cross-origin submission refused.")
+        try:
+            await read_limited_body(request, max_bytes=2 * 1024 * 1024)
+        except BodyTooLargeError:
+            raise HTTPException(413, "Request too large.") from None
+        form = await request.form(max_part_size=2 * 1024 * 1024)
+        fields = {key: value if isinstance(value, str) else "" for key, value in form.items()}
+        if not secrets.compare_digest(fields.get("csrf_token", ""), _csrf_token(request)):
+            raise HTTPException(403, "Invalid or missing CSRF token.")
+        if not fields.get("reviewer", "").strip() or not fields.get("reason", "").strip():
+            raise HTTPException(422, "Reviewer and reason are required.")
+        return link, source, fields
+
+    async def audited_write(
+        request: Request, run_id: uuid.UUID, link_id: uuid.UUID, body: dict[str, Any], path: str, tool: str
+    ) -> dict[str, Any]:
+        await run_in_threadpool(audit_action, request, run_id, link_id, body, "requested", tool)
+        result = await run_in_threadpool(ToolsWorker().json, path, body)
+        try:
+            await run_in_threadpool(audit_action, request, run_id, link_id, body, "saved", tool)
+        except psycopg.Error:
+            raise HTTPException(
+                503,
+                "The action completed, but audit confirmation failed. Reload saved revisions; do not repeat the action.",
+            ) from None
+        return result
+
+    @app.get("/reports/{run_id}/tools/{link_id}/calibration")
+    @app.get("/reports/{run_id}/tools/{link_id}/calibration/frame")
+    def calibration(
+        request: Request, run_id: uuid.UUID, link_id: uuid.UUID, frame: int = 0, revision: str | None = None
+    ) -> Response:
+        link, source = selection(request, run_id, link_id)
+        current_revision = revision or source.calibration_revision
+        path = f"/cases/{quote(link.producer_case_id, safe='')}/calibration/{quote(current_revision, safe='')}"
+        try:
+            if request.url.path.endswith("/frame"):
+                body, content_type, status, headers = ToolsWorker().exchange(f"{path}/image?frame={frame}")
+                return Response(
+                    body, status_code=status, media_type=content_type, headers={**headers, "Cache-Control": "no-store"}
+                )
+            data = ToolsWorker().json(f"{path}?frame={frame}")
+            return templates.TemplateResponse(
+                request,
+                "native_calibration.html",
+                {
+                    "data": data,
+                    "features_json": json.dumps(data["features"]),
+                    "current_revision": current_revision,
+                    "base": request.url.path,
+                    "frame": frame,
+                    "run_id": run_id,
+                    "csrf_token": _csrf_token(request),
+                },
+            )
+        except (ToolsUnavailable, OSError, psycopg.Error):
+            return error_page(request, 503, "Local calibration tools are unavailable.")
+
+    @app.post("/reports/{run_id}/tools/{link_id}/calibration")
+    async def save_calibration(request: Request, run_id: uuid.UUID, link_id: uuid.UUID) -> Response:
+        link, source, fields = await submitted(request, run_id, link_id)
+        try:
+            body: dict[str, Any] = {
+                key: fields.get(key, "")
+                for key in ("reviewer", "reason", "action", "mode", "world_unit", "control_text", "validation_text")
+            }
+            body.update(
+                frame=int(fields.get("frame", "")),
+                validation_tolerance=float(fields.get("validation_tolerance", "")),
+                features=json.loads(fields.get("features", "[]")),
+            )
+            path = f"/cases/{quote(link.producer_case_id, safe='')}/calibration/{quote(fields.get('calibration_revision') or source.calibration_revision, safe='')}"
+            if body["action"] == "save":
+                result = await audited_write(request, run_id, link_id, body, path, "calibration")
+                saved_revision = quote(str(result["revision"]), safe="")
+                return RedirectResponse(
+                    request.url.path + f"?saved={saved_revision}&revision={saved_revision}&frame={body['frame']}",
+                    status_code=303,
+                )
+            if body["action"] not in {"preview", "download"}:
+                raise ValueError("Unknown action")
+            result = await run_in_threadpool(ToolsWorker().json, path, body)
+            if body["action"] == "download":
+                return Response(
+                    json.dumps(result["calibration"], sort_keys=True, indent=2) + "\n",
+                    media_type="application/json",
+                    headers={"Content-Disposition": 'attachment; filename="calibration.json"'},
+                )
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(result)
+        except ToolsUnavailable:
+            return error_page(
+                request, 503, "The worker did not confirm completion. Inspect saved revisions before submitting again."
+            )
+        except (ValueError, KeyError, TypeError):
+            return error_page(request, 422, "Check calibration points, features and validation fields.")
+        except (OSError, psycopg.Error):
+            return error_page(request, 503, "Local audit or tools are unavailable.")
 
     @app.get("/reports/{run_id}/tools/{link_id}/tracks")
     @app.get("/reports/{run_id}/tools/{link_id}/tracks/frame")

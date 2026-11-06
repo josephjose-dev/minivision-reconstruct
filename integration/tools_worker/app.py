@@ -119,12 +119,14 @@ def create_app(cases_root: Path, token: str) -> Starlette:
         return JSONResponse({"case_id": case_id, "run_id": run_id})
 
     from integration.tools_worker.tracks import routes as track_routes
+    from integration.tools_worker.calibration import routes as calibration_routes
 
     return Starlette(
         routes=[
             Route("/health", health),
             Route("/cases/{case_id}/runs/{run_id}", selected_run),
             *track_routes(root, select_case),
+            *calibration_routes(root, select_case),
         ],
         middleware=[Middleware(LocalAccess, token=token)],
     )
