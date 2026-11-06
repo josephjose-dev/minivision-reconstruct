@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Track review{% endblock %}
+{% block head %}<script type="module" src="/static/js/native-write.js"></script>{% endblock %}
 {% block content %}
 <h1>Track review</h1>
 <p>Producer evidence review · {{ data.case_id }} · changes remain reconstruction proposals.</p>
@@ -9,8 +10,11 @@
 <table><caption>Road users at source frame {{ frame }}</caption><thead><tr><th>Tool track</th><th>Class</th><th>State</th><th>Provenance</th></tr></thead><tbody>
 {% for item in data.records %}<tr><td>{{ item.record.track_id }}</td><td>{{ item.record.class_name }}</td><td>{{ item.record.state }}</td><td>{{ item.provenance }}</td></tr>{% else %}<tr><td colspan="4">No observations at this frame.</td></tr>{% endfor %}</tbody></table>
 <p>Tracks in this run: {{ data.track_ids | join(', ') }}. Last observed frame: {{ data.last_frame if data.last_frame is not none else 'unknown' }}.</p>
-<form method="post">
+<form method="post" data-native-write>
 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<input type="hidden" name="action_id" value="{{ action_id }}">
+<input type="hidden" name="expected_event_id" value="{{ data.latest_event_id or '' }}">
+<input type="hidden" name="expected_sequence" value="{{ data.latest_sequence or 0 }}">
 <label>Reviewer name <input name="reviewer" required maxlength="200"></label>
 <label>Reason <textarea name="reason" required maxlength="2000"></textarea></label>
 <p>The app records your session and hashes of the reviewer name and reason. Producer undo/export files keep their original format; those files do not retain the submitted reason.</p>
@@ -23,4 +27,6 @@
 <p>Image dimensions and source timestamps come from the verified source frame.</p>
 <button type="submit">Save review action</button>
 </form>
+<p id="native-write-status" role="status" aria-live="polite"></p>
+<button type="button" id="retry-native-write" hidden>Retry pending action</button>
 {% endblock %}

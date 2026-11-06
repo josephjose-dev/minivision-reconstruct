@@ -53,6 +53,15 @@ def track_action(fields: dict[str, str]) -> dict[str, Any]:
         if fields.get("bbox", "").strip():
             payload["bbox"] = [float(value) for value in fields["bbox"].split(",")]
     return {
+        "action_id": str(uuid.UUID(fields["action_id"])),
+        **(
+            {
+                "expected_event_id": fields.get("expected_event_id", ""),
+                "expected_sequence": int(fields.get("expected_sequence", "0")),
+            }
+            if action == "undo"
+            else {}
+        ),
         "action": action,
         "payload": payload,
         "reviewer": fields.get("reviewer", "").strip(),
@@ -347,6 +356,7 @@ def install_native_tools(
                     "data": data,
                     "features_json": json.dumps(data["features"]),
                     "current_revision": current_revision,
+                    "action_id": str(uuid.uuid4()),
                     "base": request.url.path,
                     "frame": frame,
                     "run_id": run_id,
@@ -371,10 +381,14 @@ def install_native_tools(
             )
             path = f"/cases/{quote(link.producer_case_id, safe='')}/calibration/{quote(fields.get('calibration_revision') or source.calibration_revision, safe='')}"
             if body["action"] == "save":
+                body["action_id"] = str(uuid.UUID(fields["action_id"]))
                 result = await audited_write(request, run_id, link_id, body, path, "calibration")
                 saved_revision = quote(str(result["revision"]), safe="")
+                redirect = request.url.path + f"?saved={saved_revision}&revision={saved_revision}&frame={body['frame']}"
+                if request.headers.get("accept") == "application/json":
+                    return JSONResponse({"redirect": redirect})
                 return RedirectResponse(
-                    request.url.path + f"?saved={saved_revision}&revision={saved_revision}&frame={body['frame']}",
+                    redirect,
                     status_code=303,
                 )
             if body["action"] not in {"preview", "download"}:
@@ -386,15 +400,18 @@ def install_native_tools(
                     media_type="application/json",
                     headers={"Content-Disposition": 'attachment; filename="calibration.json"'},
                 )
-            from fastapi.responses import JSONResponse
-
             return JSONResponse(result)
+        except ToolsRefused as error:
+            return JSONResponse({"error": str(error), "write_state": "refused"}, status_code=error.status_code)
         except ToolsUnavailable:
             return error_page(
                 request, 503, "The worker did not confirm completion. Inspect saved revisions before submitting again."
             )
         except (ValueError, KeyError, TypeError):
-            return error_page(request, 422, "Check calibration points, features and validation fields.")
+            return JSONResponse(
+                {"error": "Check calibration points, features and validation fields.", "write_state": "refused"},
+                status_code=422,
+            )
         except (OSError, psycopg.Error):
             return error_page(request, 503, "Local audit or tools are unavailable.")
 
@@ -420,6 +437,7 @@ def install_native_tools(
                     "data": data,
                     "frame": frame,
                     "base": str(request.url.path),
+                    "action_id": str(uuid.uuid4()),
                     "run_id": run_id,
                     "csrf_token": _csrf_token(request),
                 },
@@ -454,12 +472,18 @@ def install_native_tools(
                 )
         except BodyTooLargeError:
             return error_page(request, 413, "Request body exceeds maximum size limit.")
+        except ToolsRefused as error:
+            return JSONResponse({"error": str(error), "write_state": "refused"}, status_code=error.status_code)
         except ToolsUnavailable:
             return error_page(
                 request, 503, "The worker did not confirm completion. Inspect saved revisions before submitting again."
             )
-        except ValueError:
-            return error_page(request, 422, "Check the action fields, reviewer and reason.")
+        except (ValueError, KeyError, TypeError):
+            return JSONResponse(
+                {"error": "Check the action fields, reviewer and reason.", "write_state": "refused"}, status_code=422
+            )
         except (OSError, psycopg.Error):
             return error_page(request, 503, "No save was started: local audit or evidence storage is unavailable.")
+        if request.headers.get("accept") == "application/json":
+            return JSONResponse({"redirect": request.url.path})
         return RedirectResponse(request.url.path, status_code=303)

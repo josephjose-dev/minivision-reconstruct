@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 from pathlib import Path
+from uuid import uuid4
 
 from integration.tools_worker.test_worker import fixture_cases, request
 
@@ -29,12 +30,9 @@ def test_calibration_save_is_byte_identical_to_public_workflow(tmp_path):
     )
     direct = tmp_path / "direct"
     shutil.copytree(case, direct)
-    original = json.loads(
-        (case / "analysis/calibration/revision-001/calibration.json").read_bytes()
-    )
+    original = json.loads((case / "analysis/calibration/revision-001/calibration.json").read_bytes())
     points = lambda rows: "\n".join(
-        ",".join(str(row[key]) for key in ("image_x", "image_y", "world_x", "world_y"))
-        for row in rows
+        ",".join(str(row[key]) for key in ("image_x", "image_y", "world_x", "world_y")) for row in rows
     )
     features = [
         {
@@ -46,6 +44,7 @@ def test_calibration_save_is_byte_identical_to_public_workflow(tmp_path):
         for row in original["features"]
     ]
     body = {
+        "action_id": str(uuid4()),
         "action": "save",
         "reviewer": "Reviewer",
         "reason": "Recheck calibration",
@@ -68,18 +67,11 @@ def test_calibration_save_is_byte_identical_to_public_workflow(tmp_path):
         parse_correspondence_rows(body["control_text"], "control"),
         parse_correspondence_rows(body["validation_text"], "validation"),
         body["validation_tolerance"],
-        tuple(
-            parse_road_feature(
-                row["feature_id"], row["name"], row["kind"], row["points"]
-            )
-            for row in features
-        ),
+        tuple(parse_road_feature(row["feature_id"], row["name"], row["kind"], row["points"]) for row in features),
     )
     expected = save_calibration_revision(direct, document, frame.image)
     app = create_app(cases, "test-local-token")
-    response = request(
-        app, "/cases/mig02-multi-review/calibration/revision-001", data=body
-    )
+    response = request(app, "/cases/mig02-multi-review/calibration/revision-001", data=body)
     assert response.status_code == 200, response.text
     actual = case / "analysis/calibration" / response.json()["revision"]
     assert {path.name: path.read_bytes() for path in actual.iterdir()} == {
@@ -90,10 +82,17 @@ def test_calibration_save_is_byte_identical_to_public_workflow(tmp_path):
         "road_overlay.png",
     }
     before = {path.name for path in (case / "analysis/calibration").iterdir()}
+    repeated = request(app, "/cases/mig02-multi-review/calibration/revision-001", data=body)
+    assert repeated.status_code == 200 and repeated.json() == response.json()
+    assert {path.name for path in (case / "analysis/calibration").iterdir()} == before
+    changed = request(
+        app, "/cases/mig02-multi-review/calibration/revision-001", data={**body, "reason": "Different intent"}
+    )
+    assert changed.status_code == 409
     refused = request(
         app,
         "/cases/mig02-multi-review/calibration/revision-001",
-        data={**body, "mode": "invalid"},
+        data={**body, "mode": "invalid", "action_id": str(uuid4())},
     )
     assert refused.status_code == 422
     assert {path.name for path in (case / "analysis/calibration").iterdir()} == before

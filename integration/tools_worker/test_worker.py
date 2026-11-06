@@ -14,9 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def request(app, path, token="test-local-token", client_host="127.0.0.1", data=None):
     async def run():
         transport = httpx.ASGITransport(app=app, client=(client_host, 40000))
-        async with httpx.AsyncClient(
-            transport=transport, base_url="http://127.0.0.1"
-        ) as client:
+        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
             headers = {} if token is None else {"Authorization": f"Bearer {token}"}
             if data is None:
                 return await client.get(path, headers=headers)
@@ -26,9 +24,7 @@ def request(app, path, token="test-local-token", client_host="127.0.0.1", data=N
 
 
 def fixture_cases(tmp_path):
-    source = (
-        ROOT / "contracts/evidence-v1/fixtures/mig02-multi-review/mig02-multi-review"
-    )
+    source = ROOT / "contracts/evidence-v1/fixtures/mig02-multi-review/mig02-multi-review"
     destination = tmp_path / "cases"
     shutil.copytree(source, destination / source.name)
     return destination
@@ -63,9 +59,7 @@ def test_selected_fixture_run_and_unknown_identifiers(tmp_path):
     assert request(app, "/cases/mig02-multi-review/runs/missing").status_code == 404
 
 
-@pytest.mark.parametrize(
-    "identifier", ["..", ".", "%2E%2E", "%2Ftmp", "C:%5Ccases", "bad%5Cid", "bad%2Fid"]
-)
+@pytest.mark.parametrize("identifier", ["..", ".", "%2E%2E", "%2Ftmp", "C:%5Ccases", "bad%5Cid", "bad%2Fid"])
 @pytest.mark.parametrize("target", ["case", "run"])
 def test_browser_paths_are_not_case_or_run_ids(tmp_path, identifier, target):
     from integration.tools_worker.app import create_app
@@ -181,9 +175,7 @@ def test_worker_refuses_unconfigured_secret_and_root(tmp_path):
         ),
     ],
 )
-def test_track_correction_writes_same_event_bytes_as_public_workflow(
-    tmp_path, monkeypatch, action, payload, prepare
-):
+def test_track_correction_writes_same_event_bytes_as_public_workflow(tmp_path, monkeypatch, action, payload, prepare):
     import os
     from datetime import UTC, datetime
     from uuid import UUID
@@ -208,32 +200,37 @@ def test_track_correction_writes_same_event_bytes_as_public_workflow(
 
     monkeypatch.setattr(workflow, "datetime", FixedTime)
     monkeypatch.setattr(workflow, "uuid4", lambda: UUID(int=1))
-    context = workflow.open_review_context(
-        direct, "mig02-multi-review", "staged-tracks"
-    )
-    worker_context = workflow.open_review_context(
-        cases, "mig02-multi-review", "staged-tracks"
-    )
+    context = workflow.open_review_context(direct, "mig02-multi-review", "staged-tracks")
+    worker_context = workflow.open_review_context(cases, "mig02-multi-review", "staged-tracks")
     for operation, input_payload in prepare:
         for selected in (context, worker_context):
             workflow.append_review_event(selected, "Reviewer", operation, input_payload)
     if action in {"undo", "export"}:
-        automatic = workflow.load_track_records(
-            context.source_records_path, context.case_id, context.source_run_id
-        )
+        automatic = workflow.load_track_records(context.source_records_path, context.case_id, context.source_run_id)
         if action == "undo":
             workflow.undo_latest_review_event(context, "Reviewer", automatic)
         else:
             direct_export = workflow.export_reviewed_revision(context, automatic)
     else:
-        workflow.append_review_event(
-            context, "Reviewer", action, {**payload, "reason": "Correct vehicle class"}
-        )
+        workflow.append_review_event(context, "Reviewer", action, {**payload, "reason": "Correct vehicle class"})
     app = create_app(cases, "test-local-token")
     response = request(
         app,
         "/cases/mig02-multi-review/tracks/staged-tracks",
         data={
+            "action_id": "00000000-0000-0000-0000-000000000001",
+            **(
+                {
+                    "expected_event_id": workflow.read_review_events(
+                        worker_context.event_log_path, worker_context.case_id, worker_context.source_run_id
+                    )[-1].event_id,
+                    "expected_sequence": workflow.read_review_events(
+                        worker_context.event_log_path, worker_context.case_id, worker_context.source_run_id
+                    )[-1].sequence,
+                }
+                if action == "undo"
+                else {}
+            ),
             "reviewer": "Reviewer",
             "reason": "Correct vehicle class",
             "action": action,
@@ -267,9 +264,7 @@ def test_invalid_review_action_is_sanitized_and_does_not_append(tmp_path):
     from integration.tools_worker.app import create_app
 
     cases = fixture_cases(tmp_path)
-    video = (
-        cases / "mig02-multi-review/original/mig02-multi-review-staged-synthetic.avi"
-    )
+    video = cases / "mig02-multi-review/original/mig02-multi-review-staged-synthetic.avi"
     video.parent.mkdir(exist_ok=True)
     shutil.copyfile(
         Path(os.environ["INCIDENTDESK_TEST_CASES_ROOT"]) / video.relative_to(cases),
@@ -282,6 +277,7 @@ def test_invalid_review_action_is_sanitized_and_does_not_append(tmp_path):
         app,
         "/cases/mig02-multi-review/tracks/staged-tracks",
         data={
+            "action_id": "00000000-0000-0000-0000-000000000002",
             "reviewer": "Reviewer",
             "reason": "Bad selection",
             "action": "correct",

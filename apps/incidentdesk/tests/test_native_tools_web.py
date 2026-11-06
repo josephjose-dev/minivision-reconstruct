@@ -129,6 +129,7 @@ def test_track_page_uses_attached_selection_and_protects_write(
     token = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
     assert token is not None
     fields = {
+        "action_id": str(uuid.uuid4()),
         "csrf_token": token[1],
         "reviewer": "Reviewer",
         "reason": "Correct class",
@@ -145,6 +146,7 @@ def test_track_page_uses_attached_selection_and_protects_write(
     assert client.post(url, data=fields, follow_redirects=False).status_code == 303
     assert calls[-1][0] == "/cases/mig02-relative/tracks/staged-tracks"
     assert calls[-1][1] == {
+        "action_id": fields["action_id"],
         "reviewer": "Reviewer",
         "reason": "Correct class",
         "action": "correct",
@@ -193,6 +195,7 @@ def test_track_page_uses_attached_selection_and_protects_write(
         calls[-1][0] == f"/cases/mig02-relative/calibration/{envelope['sources'][0]['calibration_revision']}?frame=68"
     )
     calibration_fields = {
+        "action_id": str(uuid.uuid4()),
         "csrf_token": token[1],
         "reviewer": "Reviewer",
         "reason": "Check points",
