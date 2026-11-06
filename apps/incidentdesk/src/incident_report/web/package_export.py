@@ -189,7 +189,12 @@ Do not treat producer reviews or contribution outcomes as officer approval or fa
 """
 
 
-def assemble(files: dict[str, bytes]) -> bytes:
+def _evidence_root(evidence: EvidenceStore | None) -> str | None:
+    root = getattr(evidence, "root", None)
+    return str(root) if root is not None else None
+
+
+def assemble(files: dict[str, bytes], *, evidence_root: str | None = None) -> bytes:
     """Pure deterministic ZIP writer: no filesystem, database, clock or model calls."""
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as archive:
@@ -198,7 +203,7 @@ def assemble(files: dict[str, bytes]) -> bytes:
             if any(ord(char) < 32 or ord(char) == 127 for char in path):
                 raise PackageRefused("Unsafe package member path.")
             try:
-                validate_payload(path, data)
+                validate_payload(path, data, evidence_root=evidence_root)
             except UnsafePayload as exc:
                 raise PackageRefused(str(exc)) from None
             entry = zipfile.ZipInfo(path, date_time=(1980, 1, 1, 0, 0, 0))

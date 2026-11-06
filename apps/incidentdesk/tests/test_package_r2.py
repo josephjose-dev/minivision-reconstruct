@@ -1,0 +1,117 @@
+"""MIG-05 Round 2: officer text must not make approved versions unexportable (M1) and related hardening."""
+
+import io
+import zipfile
+
+import pytest
+from fastapi.testclient import TestClient
+
+from incident_report.audit import canonical_json
+from incident_report.domain import Report
+from incident_report.runlog import RunLog
+from test_package_parity import approve, csrf_token
+from test_report_print import workspace as workspace
+
+ALLOWED_TEXT = [
+    "Note:\u0627\u0644\u0633\u0627\u0626\u0642 stopped",
+    "checked /ref",
+    "lane (/left)",
+    "Speed limit 60 km/h",
+    "Lawful source https://example.com/law/14?article=3",
+    "Part 1/2 and/or part 2",
+]
+REFUSED_TEXT = [
+    "C:\\Users\\x",
+    "see C:\\Users\\x\\clip.mp4",
+    "/home/x/clip.mp4",
+    "copied from /Users/alice/evidence",
+    "clip at \\\\server\\share\\clip.mp4",
+    "file:///tmp/private",
+    "http://localhost:8000/private",
+]
+JSON_PATHS = ["decisions.json", "manifest.json", "reconstruction/import/bundle.json"]
+
+
+@pytest.mark.parametrize("path", JSON_PATHS)
+@pytest.mark.parametrize("text", ALLOWED_TEXT)
+def test_ordinary_officer_text_is_allowed_in_json_payloads(path: str, text: str) -> None:
+    from incident_report.web.package_safety import validate_payload
+
+    validate_payload(path, canonical_json({"reason": text, "nested": [{"ai_original": text}]}).encode())
+
+
+def test_ordinary_text_is_allowed_in_jsonl_and_html_payloads() -> None:
+    from incident_report.web.package_safety import validate_payload
+
+    line = canonical_json({"note": "Note:\u0627 checked /ref (/left) 60 km/h"})
+    validate_payload("reconstruction/import/events.jsonl", (line + "\n" + line + "\n").encode())
+    validate_payload("report.html", "<p>Note:\u0627 checked /ref (/left) 60 km/h</p>".encode())
+
+
+@pytest.mark.parametrize("path", [*JSON_PATHS, "reconstruction/import/events.jsonl"])
+@pytest.mark.parametrize("text", REFUSED_TEXT)
+def test_real_machine_references_are_refused_and_the_message_names_the_payload(path: str, text: str) -> None:
+    from incident_report.web.package_safety import UnsafePayload, validate_payload
+
+    with pytest.raises(UnsafePayload, match="machine|host|path") as refusal:
+        validate_payload(path, canonical_json({"reason": text, "n": {"k": ["ok", text]}}).encode())
+    assert path in str(refusal.value)
+
+
+def test_the_configured_evidence_root_is_refused_wherever_it_appears() -> None:
+    from incident_report.web.package_safety import UnsafePayload, validate_payload
+
+    root = "/srv/evidence-store"
+    content = canonical_json({"reason": "stored at /srv/evidence-store/objects/ab"}).encode()
+    validate_payload("decisions.json", content)  # not a known machine root without configuration
+    with pytest.raises(UnsafePayload, match="decisions.json"):
+        validate_payload("decisions.json", content, evidence_root=root)
+    with pytest.raises(UnsafePayload, match="report.html"):
+        validate_payload("report.html", b"<p>/srv/evidence-store/objects</p>", evidence_root=root)
+
+
+def test_approved_version_with_arabic_and_slash_officer_text_still_downloads(
+    workspace: tuple[TestClient, Report],
+) -> None:
+    client, report = workspace
+    approve(client, report)
+    url = f"/reports/{report.run_id}"
+    fields = {"csrf_token": csrf_token(client, report)}
+    assert client.post(url + "/versions", data=fields, follow_redirects=False).status_code == 303
+    reason = "Note:\u0627\u0644\u0633\u0627\u0626\u0642 checked /ref (/left) 60 km/h"
+    response = client.post(
+        url + "/overrides",
+        data={
+            **fields,
+            "finding_key": "party:0",
+            "new_value": "Not at Fault",
+            "reason_code": "other",
+            "reason_text": reason,
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    approve(client, report)
+    package = client.get(url + "/versions/2/package")
+    assert package.status_code == 200, package.text
+    with zipfile.ZipFile(io.BytesIO(package.content)) as archive:
+        assert "\\u0627" in archive.read("decisions.json").decode()
+
+
+def test_build_refuses_text_that_reveals_the_configured_evidence_root(
+    workspace: tuple[TestClient, Report], run_log: RunLog
+) -> None:
+    from typing import cast
+
+    from fastapi import FastAPI
+
+    from incident_report.package import PackageRefused, build
+    from test_review_workspace_r2 import store_report
+
+    client, report = workspace
+    evidence = cast(FastAPI, client.app).state.evidence
+    leaked = evidence.root.as_posix() + "/objects/ab"
+    report = store_report(run_log, report.model_copy(update={"summary": "Synthetic stored at " + leaked}))
+    approve(client, report)
+    with pytest.raises(PackageRefused, match="report.html"):
+        build(report.run_id, 1, log=run_log, evidence=evidence)

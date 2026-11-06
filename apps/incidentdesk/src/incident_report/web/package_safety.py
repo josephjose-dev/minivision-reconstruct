@@ -2,9 +2,12 @@
 
 import base64
 import ipaddress
+import json
 import re
+from collections.abc import Iterator
 from html import unescape
 from html.parser import HTMLParser
+from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from incident_report.evidence_import.reader import safe_path
@@ -14,8 +17,25 @@ class UnsafePayload(ValueError):
     pass
 
 
-def _text(text: str) -> None:
+# A real machine path: a drive letter + separator, a UNC share or a known absolute root.
+# They must start a string or follow whitespace/opening punctuation, so ordinary officer
+# prose ("Note:<Arabic>", "checked /ref", "lane (/left)", "60 km/h", "and/or") stays valid.
+_MACHINE_PATH = re.compile(
+    r"(?:^|[\s\"'(\[<=,;])[A-Za-z]:[\\/]"
+    r"|(?:^|[\s\"'(\[<=,;])\\\\[^\s\\]"
+    r"|(?<![\w/<.:-])/(?:Users|home|tmp|mnt|var|etc|opt)/"
+    r"|(?<![\w:/])//"
+    r"|file://|\blocalhost\b|127\.0\.0\.1"
+)
+
+
+def _text(text: str, evidence_root: str | None = None) -> None:
     text = unquote(unescape(text))
+    if evidence_root and len(evidence_root.strip("/\\")) > 1:
+        roots = {evidence_root.casefold(), evidence_root.replace("\\", "/").casefold()}
+        folded = text.replace("\\", "/").casefold()
+        if any(root in text.casefold() or root in folded for root in roots):
+            raise UnsafePayload("A payload contains the evidence storage location.")
     for url in re.findall(r'https?://[^\s"<>]+', text):
         try:
             parts = urlsplit(url)
@@ -45,14 +65,40 @@ def _text(text: str) -> None:
         except ValueError:
             raise UnsafePayload("A payload contains an unsafe host URL.") from None
     without_urls = re.sub(r'https?://[^\s"<>]+', "", text)
-    if re.search(
-        r"[A-Za-z]:[\\/]|file://|\\\\|(?<![\w:/])//|(?<![\w/<])/(?!/)[\w.-]+(?:/[\w.-]+)*|\blocalhost\b|127\.0\.0\.1",
-        without_urls,
-    ):
+    if _MACHINE_PATH.search(without_urls):
         raise UnsafePayload("A payload contains a machine-local path or host.")
 
 
+def _strings(value: Any) -> Iterator[str]:
+    """Yield every decoded JSON string (keys and values); JSON escapes are never scanned in raw form."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield from _strings(key)
+            yield from _strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings(item)
+
+
+def _json_text(path: str, text: str, evidence_root: str | None) -> None:
+    documents = text.splitlines() if path.endswith(".jsonl") else [text]
+    try:
+        decoded = [json.loads(line) for line in documents if line.strip()]
+    except ValueError:
+        _text(text, evidence_root)  # Not valid JSON: fall back to the strict whole-text scan.
+        return
+    for document in decoded:
+        for string in _strings(document):
+            _text(string, evidence_root)
+
+
 class _OfflineHTML(HTMLParser):
+    def __init__(self, evidence_root: str | None = None) -> None:
+        super().__init__()
+        self.evidence_root = evidence_root
+
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag in {
             "script",
@@ -88,18 +134,26 @@ class _OfflineHTML(HTMLParser):
             elif key == "href":
                 if not (value.startswith("#") or value.startswith(("https://", "http://"))):
                     raise UnsafePayload("An HTML link has an unsafe path or scheme.")
-                _text(value)
+                _text(value, self.evidence_root)
             else:
-                _text(value)
+                _text(value, self.evidence_root)
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.handle_starttag(tag, attrs)
 
     def handle_data(self, data: str) -> None:
-        _text(data)
+        _text(data, self.evidence_root)
 
 
-def validate_payload(path: str, content: bytes) -> None:
+def validate_payload(path: str, content: bytes, *, evidence_root: str | None = None) -> None:
+    """Refuse a payload that carries an active resource or a machine-local path/host; name it in the message."""
+    try:
+        _validate(path, content, evidence_root)
+    except UnsafePayload as exc:
+        raise UnsafePayload(f"{path}: {exc}") from None
+
+
+def _validate(path: str, content: bytes, evidence_root: str | None) -> None:
     if path.startswith("views/"):
         return  # Original video bytes are hash checked before they reach this boundary.
     if path.startswith("reconstruction/") and path != "reconstruction/review_aid.html":
@@ -110,9 +164,13 @@ def validate_payload(path: str, content: bytes) -> None:
     except UnicodeError:
         raise UnsafePayload("An artifact is not portable UTF-8 text.") from None
     if path in {"report.html", "reconstruction/review_aid.html"}:
-        _OfflineHTML().feed(text)
+        parser = _OfflineHTML(evidence_root)
+        parser.feed(text)
+        parser.close()
+    elif path.endswith((".json", ".jsonl")):
+        _json_text(path, text, evidence_root)
     else:
-        _text(text)
+        _text(text, evidence_root)
 
 
 def member_path(name: str) -> None:
